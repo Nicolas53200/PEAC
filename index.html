@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#2563eb" />
+    <meta name="description" content="Prototype PWA tablette pour la notation PEAC SDIS Mayenne." />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="icons/icon-192.png" />
+    <link rel="stylesheet" href="styles.css" />
+    <title>PEAC SDIS Mayenne</title>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand-block">
+          <img class="brand-logo" src="logo-peac.png" alt="Logo PEAC SDIS de la Mayenne" />
+          <div>
+            <p class="eyebrow">Prototype PWA tablette</p>
+            <h1>PEAC SDIS Mayenne</h1>
+            <p class="subtitle">Saisie des évaluations, chrono terrain et comptage rapide des allers-retours de 18 m pour le jury.</p>
+          </div>
+        </div>
+        <div class="badge">Hors ligne prêt</div>
+      </header>
+
+      <section class="card candidates-card full-span" id="candidatesSection">
+        <div class="section-head">
+          <div>
+            <h2>Liste des candidats</h2>
+            <p class="table-meta">Sélectionne un candidat pour pré-remplir le formulaire d'évaluation.</p>
+          </div>
+          <div class="table-actions">
+            <button id="openAddCandidateBtn" class="primary-btn" type="button">+ Ajouter un candidat</button>
+            <button id="importExcelBtn" class="ghost-btn" type="button">📥 Importer Excel</button>
+            <input id="importExcelInput" type="file" accept=".xlsx,.xls,.ods,.csv" hidden />
+            <button id="clearCandidatesBtn" class="danger-btn" type="button">Vider la liste</button>
+          </div>
+        </div>
+
+        <div class="candidate-tabs">
+          <button id="tabPending" class="tab-btn is-active" type="button">
+            À passer <span id="pendingCount" class="tab-badge">0</span>
+          </button>
+          <button id="tabDone" class="tab-btn" type="button">
+            Passés <span id="doneCount" class="tab-badge">0</span>
+          </button>
+        </div>
+
+        <div id="candidatesPendingList" class="candidates-list"></div>
+        <div id="candidatesDoneList" class="candidates-list" hidden></div>
+      </section>
+
+      <main id="setupView" class="layout">
+        <section class="card form-card">
+          <div class="section-head">
+            <h2>Nouvelle évaluation</h2>
+            <button id="resetFormBtn" class="ghost-btn" type="button">Réinitialiser</button>
+          </div>
+
+          <form id="evaluationForm" class="form-grid">
+            <label>
+              <span>Nom</span>
+              <input type="text" id="nom" name="nom" placeholder="Nom" required />
+            </label>
+
+            <label>
+              <span>Prénom</span>
+              <input type="text" id="prenom" name="prenom" placeholder="Prénom" required />
+            </label>
+
+            <label>
+              <span>Centre</span>
+              <input type="text" id="centre" name="centre" placeholder="Centre" required />
+            </label>
+
+            <label>
+              <span>Âge</span>
+              <input type="number" id="age" name="age" min="16" max="67" placeholder="Age" required />
+            </label>
+
+            <label>
+              <span>Sexe</span>
+              <select id="sexe" name="sexe" required>
+                <option value="">Choisir…</option>
+                <option value="F">Femme</option>
+                <option value="H">Homme</option>
+              </select>
+            </label>
+
+            <label>
+              <span>Fonction</span>
+              <div class="fonction-row">
+                <select id="fonction" name="fonction" required>
+                  <option value="">Choisir…</option>
+                  <option value="1">Fonction 1 – Toutes missions</option>
+                  <option value="2">Fonction 2 – SSUAP</option>
+                  <option value="3">Fonction 3 – Cadres</option>
+                </select>
+                <button id="ppaToggleBtn" class="ppa-btn" type="button" title="Parcours Professionnel Adapté">PPA</button>
+              </div>
+            </label>
+
+            <label>
+              <span>Nombre de distances (18 m)</span>
+              <input type="number" id="distances" name="distances" min="0" step="1" placeholder="0" required />
+            </label>
+
+            <label>
+              <span>FC1</span>
+              <input type="text" id="fc1" name="fc1" placeholder="Optionnel" />
+            </label>
+
+            <label>
+              <span>FC2</span>
+              <input type="text" id="fc2" name="fc2" placeholder="Optionnel" />
+            </label>
+
+            <div class="baremes-inline-action">
+              <button id="openBaremesBtn" class="ghost-btn baremes-open-btn" type="button">📊 Barèmes de référence</button>
+            </div>
+
+            <label class="full-width">
+              <span>Observation</span>
+              <textarea id="observation" name="observation" rows="3" placeholder="Notes éventuelles…"></textarea>
+            </label>
+
+            <div id="ppaBanner" class="ppa-banner full-width" hidden>
+              ⚠️ Mode <strong>PPA actif</strong> — Calcul simplifié : 5 pts de base + 1 pt par distance (barèmes non appliqués)
+            </div>
+
+            <div class="preview full-width">
+              <div>
+                <span>Tranche d'âge</span>
+                <strong id="ageRange">—</strong>
+              </div>
+              <div>
+                <span>Barème / 18 m</span>
+                <strong id="multiplier">—</strong>
+              </div>
+              <div>
+                <span>Points initiaux</span>
+                <strong id="basePoints">5</strong>
+              </div>
+              <div>
+                <span>Points distances</span>
+                <strong id="distancePoints">0</strong>
+              </div>
+              <div class="preview-total">
+                <span>Total points</span>
+                <strong id="points">5</strong>
+              </div>
+            </div>
+</form>
+        </section>
+
+        <section class="stack-col">
+          <section class="card jury-card">
+            <div class="section-head compact-head">
+              <div>
+                <h2>Poste jury terrain</h2>
+                <p class="table-meta">Version compacte sur la page principale. Le mode plein écran reste disponible pour le jury.</p>
+              </div>
+            </div>
+
+            <div class="jury-grid">
+              <div class="jury-panel chrono-panel">
+                <div class="panel-head">
+                  <h3>Chrono</h3>
+                  <div id="chronoPresetLabel" class="panel-badge">Choisir Femme ou Homme</div>
+                </div>
+
+                <div class="preset-actions">
+                  <button id="presetFemmeBtn" class="primary-btn preset-btn" type="button">Femme · 5:30</button>
+                  <button id="presetHommeBtn" class="primary-btn preset-btn alt" type="button">Homme · 4:00</button>
+                </div>
+
+                <div id="chronoDisplay" class="chrono-display">05:30.0</div>
+
+                <div class="chrono-actions">
+                  <button id="startChronoBtn" class="primary-btn" type="button">Démarrer</button>
+                  <button id="pauseChronoBtn" class="ghost-btn" type="button">Pause</button>
+                  <button id="resetChronoBtn" class="ghost-btn" type="button">Remettre à zéro</button>
+                </div>
+              </div>
+
+              <div class="jury-panel counter-panel">
+                <div class="panel-head">
+                  <h3>Compteur 18 m</h3>
+                  <div class="panel-badge">Jury</div>
+                </div>
+
+                <div id="counterDisplay" class="counter-display">0</div>
+                <p class="counter-help">Chaque appui ajoute ou retire un aller-retour. Le total remplit automatiquement le champ “Nombre de distances”.</p>
+
+                <div class="counter-actions">
+                  <button id="minusDistanceBtn" class="ghost-btn counter-btn" type="button">−1</button>
+                  <button id="plusDistanceBtn" class="primary-btn counter-btn" type="button">+1</button>
+                </div>
+
+                <div class="counter-actions secondary">
+                  <button id="resetDistanceBtn" class="ghost-btn" type="button">Remettre à zéro</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <div class="jury-actions">
+            <button id="openTerrainBtn" class="primary-btn" type="button">Mode plein écran jury</button>
+            <button id="addWithoutFullscreenBtn" class="ghost-btn" type="submit" form="evaluationForm">Ajouter l'évaluation</button>
+            <button id="viewResultsBtn" class="ghost-btn" type="button">📋 Voir les résultats</button>
+          </div>
+        </section>
+      </main>
+
+      <section id="recordsView" class="card table-card full-span" hidden>
+        <div class="section-head">
+          <div>
+            <h2>Évaluations enregistrées</h2>
+            <p id="statsLine" class="table-meta">0 fiche</p>
+          </div>
+          <div class="table-actions">
+            <button id="newEvaluationBtn" class="primary-btn" type="button">Nouvelle évaluation</button>
+            <button id="exportCsvBtn" class="ghost-btn" type="button">Exporter CSV</button>
+            <button id="exportPdfBtn" class="ghost-btn" type="button">Fiche PDF globale</button>
+            <button id="shareBtn" class="ghost-btn" type="button">Partager / e-mail</button>
+            <button id="clearAllBtn" class="danger-btn" type="button">Tout supprimer</button>
+          </div>
+        </div>
+
+        <div class="ranking-strip">
+          <div class="ranking-title">Classement automatique</div>
+          <div id="rankingList" class="ranking-list"></div>
+        </div>
+
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Rang</th>
+                <th>Nom</th>
+                <th>Prénom</th>
+                <th>Centre</th>
+                <th>Âge</th>
+                <th>Sexe</th>
+                <th>Fonction</th>
+                <th>Distances</th>
+                <th>Chrono</th>
+                <th>Tranche</th>
+                <th>Barème</th>
+                <th>Base</th>
+                <th>Pts distances</th>
+                <th>Total</th>
+                <th>FC1</th>
+                <th>FC2</th>
+                <th>Observation</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="recordsBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <section id="terrainMode" class="terrain-mode" hidden>
+      <div class="terrain-shell">
+        <div class="terrain-topbar">
+          <div>
+            <p class="terrain-label">Mode jury plein écran</p>
+            <h2 id="terrainCandidateName">Nom Prénom</h2>
+            <p id="terrainCandidateMeta" class="terrain-meta">Centre · Fonction · Sexe</p>
+          </div>
+          <div class="terrain-top-actions">
+            <button id="openBaremesTerrainBtn" class="ghost-btn" type="button">📊 Barèmes</button>
+            <button id="saveTerrainTopBtn" class="primary-btn" type="button">Enregistrer le résultat</button>
+            <button id="exitTerrainBtn" class="ghost-btn" type="button">Retour résultats</button>
+          </div>
+        </div>
+
+        <div class="terrain-grid">
+          <section class="terrain-panel">
+            <div class="panel-head">
+              <h3>Chrono</h3>
+              <div id="terrainPresetLabel" class="panel-badge">Choisir Femme ou Homme</div>
+            </div>
+
+            <div class="preset-actions terrain-presets">
+              <button id="terrainPresetFemmeBtn" class="primary-btn preset-btn" type="button">Femme · 5:30</button>
+              <button id="terrainPresetHommeBtn" class="primary-btn preset-btn alt" type="button">Homme · 4:00</button>
+            </div>
+
+            <div id="terrainChronoDisplay" class="chrono-display terrain-chrono">05:30.0</div>
+
+            <div class="chrono-actions terrain-actions-row">
+              <button id="terrainStartChronoBtn" class="primary-btn" type="button">Démarrer</button>
+              <button id="terrainPauseChronoBtn" class="ghost-btn" type="button">Pause</button>
+              <button id="terrainResetChronoBtn" class="ghost-btn" type="button">Remise à zéro</button>
+            </div>
+          </section>
+
+          <section class="terrain-panel">
+            <div class="panel-head">
+              <h3>Compteur 18 m</h3>
+              <div class="panel-badge">Jury</div>
+            </div>
+
+            <div id="terrainCounterDisplay" class="counter-display terrain-counter">0</div>
+
+            <div class="counter-actions terrain-counter-actions">
+              <button id="terrainMinusDistanceBtn" class="ghost-btn counter-btn" type="button">−1</button>
+              <button id="terrainPlusDistanceBtn" class="primary-btn counter-btn" type="button">+1</button>
+            </div>
+
+            <div class="counter-actions secondary">
+              <button id="terrainResetDistanceBtn" class="ghost-btn" type="button">Remettre à zéro</button>
+            </div>
+          </section>
+        </div>
+
+        <div class="terrain-bottombar">
+          <div class="terrain-bottom-info">
+            <span>Distances</span>
+            <strong id="terrainDistanceInfo">0</strong>
+          </div>
+          <div class="terrain-bottom-info">
+            <span>Chrono affiché</span>
+            <strong id="terrainChronoInfo">05:30.0</strong>
+          </div>
+          <button id="saveTerrainBtn" class="primary-btn save-btn" type="button">Enregistrer le résultat</button>
+        </div>
+      </div>
+    </section>
+
+
+    <section id="baremesModal" class="modal-backdrop" hidden>
+      <div class="modal-card">
+        <div class="section-head">
+          <div>
+            <h2>Barèmes de référence</h2>
+            <p class="table-meta">Les 5 points des épreuves précédentes sont ajoutés automatiquement à chaque fiche.</p>
+          </div>
+          <button id="closeBaremesBtn" class="ghost-btn" type="button">Fermer</button>
+        </div>
+        <div class="baremes-table-wrapper modal-table-wrapper">
+          <table class="baremes-table">
+            <thead>
+              <tr>
+                <th>Tranche d'âge</th>
+                <th>
+                  <div class="func-head">Fonction 1</div>
+                  <div class="func-sub">Toutes missions</div>
+                </th>
+                <th>
+                  <div class="func-head">Fonction 2</div>
+                  <div class="func-sub">SSUAP</div>
+                </th>
+                <th>
+                  <div class="func-head">Fonction 3</div>
+                  <div class="func-sub">Cadres</div>
+                </th>
+              </tr>
+            </thead>
+            <tbody id="baremesTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="addCandidateModal" class="modal-backdrop" hidden>
+      <div class="modal-card">
+        <div class="section-head">
+          <h2>Ajouter un candidat</h2>
+          <button id="closeAddCandidateBtn" class="ghost-btn" type="button">Fermer</button>
+        </div>
+        <form id="addCandidateForm" class="form-grid">
+          <label>
+            <span>Nom</span>
+            <input type="text" id="candNom" placeholder="Nom" required />
+          </label>
+          <label>
+            <span>Prénom</span>
+            <input type="text" id="candPrenom" placeholder="Prénom" required />
+          </label>
+          <label>
+            <span>Centre</span>
+            <input type="text" id="candCentre" placeholder="Centre" />
+          </label>
+          <label>
+            <span>Âge</span>
+            <input type="number" id="candAge" min="16" max="67" placeholder="Âge" />
+          </label>
+          <label>
+            <span>Sexe</span>
+            <select id="candSexe">
+              <option value="">Choisir…</option>
+              <option value="F">Femme</option>
+              <option value="H">Homme</option>
+            </select>
+          </label>
+          <label>
+            <span>Fonction</span>
+            <select id="candFonction">
+              <option value="">Choisir…</option>
+              <option value="1">Fonction 1 – Toutes missions</option>
+              <option value="2">Fonction 2 – SSUAP</option>
+              <option value="3">Fonction 3 – Cadres</option>
+            </select>
+          </label>
+          <div class="full-width" style="display:flex;justify-content:flex-end;gap:10px;margin-top:4px;">
+            <button type="button" class="ghost-btn" id="closeAddCandidateBtn2">Annuler</button>
+            <button type="submit" class="primary-btn">Ajouter</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section id="ppaModal" class="modal-backdrop" hidden>
+      <div class="modal-card ppa-modal-card">
+        <div class="ppa-modal-header">
+          <div class="ppa-warning-icon">⚠️</div>
+          <h2 class="ppa-modal-title">Mode PPA active</h2>
+          <p class="ppa-modal-subtitle">Parcours Professionnel Adapté — Concours SPP</p>
+        </div>
+        <div class="ppa-modal-body">
+          <div class="ppa-info-row">
+            <span class="ppa-info-icon">🚫</span>
+            <p>Vous n'êtes <strong>plus en mode PEAC standard</strong>. Les barèmes par tranche d'âge et par fonction <strong>ne s'appliquent pas</strong>.</p>
+          </div>
+          <div class="ppa-info-row">
+            <span class="ppa-info-icon">🎯</span>
+            <p>Calcul simplifié : <strong>5 points de base + 1 point par distance de 18 m</strong>, quelle que soit la tranche d'âge.</p>
+          </div>
+          <div class="ppa-info-row">
+            <span class="ppa-info-icon">📋</span>
+            <p>Ce mode est réservé aux candidats en <strong class="ppa-highlight">Parcours Professionnel Adapté</strong> (style concours SPP). Vérifiez que le candidat est bien éligible à ce dispositif avant de continuer.</p>
+          </div>
+        </div>
+        <div class="ppa-modal-actions">
+          <button id="ppaCancelBtn" class="ghost-btn" type="button">Annuler</button>
+          <button id="ppaConfirmBtn" class="ppa-confirm-btn" type="button">J'ai compris — Continuer en mode PPA</button>
+        </div>
+      </div>
+    </section>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

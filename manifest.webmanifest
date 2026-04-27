@@ -1,0 +1,21 @@
+{
+  "name": "PEAC SDIS Mayenne",
+  "short_name": "PEAC",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f4f6fb",
+  "theme_color": "#1e3a8a",
+  "description": "Application PWA tablette pour la notation PEAC avec calcul automatique des points.",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
