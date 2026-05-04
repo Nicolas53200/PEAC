@@ -277,35 +277,72 @@ function closeAddCandidateModal() {
   document.getElementById('addCandidateForm').reset();
 }
 
+function calculateAgeFromDob(dob) {
+  // Accepts JS Date, Excel serial number, or string DD/MM/YYYY
+  let date;
+  if (dob instanceof Date) {
+    date = dob;
+  } else if (typeof dob === 'number') {
+    // Excel serial date (days since 1900-01-01, with leap year bug)
+    date = new Date((dob - 25569) * 86400 * 1000);
+  } else if (typeof dob === 'string') {
+    const parts = dob.split(/[\/\-\.]/);
+    if (parts.length === 3) {
+      // DD/MM/YYYY or YYYY-MM-DD
+      if (parts[0].length === 4) {
+        date = new Date(`${parts[0]}-${parts[1]}-${parts[2]}`);
+      } else {
+        date = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+      }
+    }
+  }
+  if (!date || isNaN(date)) return '';
+  const today = new Date();
+  let age = today.getFullYear() - date.getFullYear();
+  const m = today.getMonth() - date.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < date.getDate())) age--;
+  return age >= 16 && age <= 67 ? age : '';
+}
+
 function handleImportExcel(file) {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = (e) => {
     try {
       const data = new Uint8Array(e.target.result);
-      const workbook = XLSX.read(data, { type: 'array' });
+      const workbook = XLSX.read(data, { type: 'array', cellDates: true });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
       let added = 0;
       let skipped = 0;
       rows.forEach((row) => {
-        // Accept flexible column names (case-insensitive)
         const get = (keys) => {
           for (const k of keys) {
-            const found = Object.keys(row).find((rk) => rk.toLowerCase().replace(/[^a-z]/g, '') === k);
-            if (found !== undefined) return String(row[found]).trim();
+            const found = Object.keys(row).find((rk) => rk.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z]/g, '') === k);
+            if (found !== undefined) return row[found];
           }
           return '';
         };
-        const nom = get(['nom']);
-        const prenom = get(['prenom', 'prénom']);
-        const centre = get(['centre']);
-        const ageRaw = get(['age']);
-        const age = ageRaw ? Number(ageRaw) : '';
-        const sexeRaw = get(['sexe']).toUpperCase();
+        const nom = String(get(['nom']) || '').trim();
+        const prenom = String(get(['prenom']) || '').trim();
+        const centre = String(get(['centre']) || '').trim();
+
+        // Age : priorité à la colonne age, sinon calcul depuis date de naissance
+        let age = '';
+        const ageRaw = get(['age', 'ageauto']);
+        if (ageRaw !== '') {
+          age = Number(ageRaw) || '';
+        }
+        if (!age) {
+          const dobRaw = get(['datenaissance', 'ddn', 'naissance', 'datedenaissance']);
+          if (dobRaw !== '') age = calculateAgeFromDob(dobRaw);
+        }
+
+        const sexeRaw = String(get(['sexe']) || '').toUpperCase().trim();
         const sexe = sexeRaw === 'F' || sexeRaw === 'FEMME' ? 'F' : sexeRaw === 'H' || sexeRaw === 'HOMME' ? 'H' : '';
-        const fonctionRaw = get(['fonction']);
-        const fonction = ['1', '2', '3'].includes(String(fonctionRaw)) ? String(fonctionRaw) : '';
+        const fonctionRaw = String(get(['fonction']) || '').trim();
+        const fonction = ['1', '2', '3'].includes(fonctionRaw) ? fonctionRaw : '';
+
         if (!nom || !prenom) { skipped++; return; }
         const existing = candidates.find(
           (c) => c.nom.toLowerCase() === nom.toLowerCase() && c.prenom.toLowerCase() === prenom.toLowerCase()
