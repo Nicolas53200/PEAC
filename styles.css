@@ -281,7 +281,7 @@ textarea { resize: vertical; min-height: 68px; }
   font-size: 0.9rem;
 }
 .table-wrapper { overflow: auto; border: 1px solid var(--line); border-radius: 20px; }
-table { min-width: 1800px; width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+table { min-width: 1900px; width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .table-card td:last-child, .table-card th:last-child { text-align: center; }
 .empty-row td { text-align: center; color: var(--muted); padding: 22px; }
 
@@ -1142,7 +1142,7 @@ table { min-width: 1800px; width: 100%; border-collapse: collapse; font-size: 0.
 /* ─── FC fields row dans le formulaire ───────────────────────────────────── */
 .fc-fields-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   padding: 12px 14px;
   background: rgba(244, 114, 182, 0.06);
@@ -1166,4 +1166,123 @@ table { min-width: 1800px; width: 100%; border-collapse: collapse; font-size: 0.
 }
 @media (max-width: 720px) {
   .fc-fields-row { grid-template-columns: 1fr; }
+}
+
+/* Épuration tablette 1 */
+.topbar-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.topbar-actions .fc-mode-btn {
+  white-space: nowrap;
+}
+.evaluation-entry-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+.evaluation-entry-actions .primary-btn {
+  min-width: min(100%, 280px);
+}
+#evaluationCard[hidden],
+#jurySection[hidden] {
+  display: none !important;
+}
+#evaluationCard .preview {
+  display: none !important;
+}
+@media (max-width: 860px) {
+  .topbar {
+    align-items: stretch;
+  }
+  .topbar-actions {
+    align-items: stretch;
+  }
+}
+
+
+/* UX tablette jury pleine page */
+.terrain-mode {
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  padding: clamp(10px, 1.4vw, 18px);
+}
+.terrain-shell {
+  min-height: 0;
+  height: calc(100vh - clamp(20px, 2.8vw, 36px));
+  height: calc(100dvh - clamp(20px, 2.8vw, 36px));
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+.terrain-grid {
+  min-height: 0;
+}
+.terrain-panel {
+  min-height: 0;
+  overflow: hidden;
+}
+.terrain-chrono,
+.terrain-counter {
+  min-height: 0;
+  height: 100%;
+}
+.terrain-actions-row button,
+.terrain-presets .preset-btn,
+.terrain-counter-actions .counter-btn,
+.terrain-top-actions button,
+.save-btn {
+  touch-action: manipulation;
+}
+
+@media (orientation: landscape) and (min-width: 760px) {
+  .terrain-grid { grid-template-columns: 1fr 1fr; }
+  .terrain-panel { grid-template-rows: auto auto minmax(0, 1fr) auto; }
+  .terrain-chrono { font-size: clamp(4rem, 8vw, 8rem); }
+  .terrain-counter { font-size: clamp(6rem, 11vw, 10rem); }
+}
+
+@media (orientation: portrait), (max-width: 980px) {
+  .terrain-mode { overflow: auto; }
+  .terrain-shell { height: auto; min-height: calc(100dvh - 20px); }
+  .terrain-grid { grid-template-columns: 1fr; }
+  .terrain-chrono, .terrain-counter { min-height: 240px; }
+  .terrain-topbar, .terrain-bottombar { align-items: stretch; }
+  .terrain-top-actions { display: grid; grid-template-columns: 1fr 1fr; }
+  #openBaremesTerrainBtn { grid-column: 1 / -1; }
+}
+
+@media (max-width: 720px), (max-height: 760px) {
+  .terrain-top-actions button,
+  .save-btn { min-height: 56px; }
+  .terrain-label { margin-bottom: 2px; }
+  .terrain-meta { margin-top: 3px; }
+}
+
+
+/* Actions d'envoi depuis le mode Tablette 2 */
+.fc-send-actions {
+  margin-top: 14px;
+  padding: 14px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(191, 219, 254, 0.16);
+}
+.fc-send-title {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-weight: 800;
+}
+.fc-send-buttons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.fc-send-buttons button {
+  min-height: 54px;
+}
+@media (max-width: 820px) {
+  .fc-send-buttons { grid-template-columns: 1fr; }
 }
