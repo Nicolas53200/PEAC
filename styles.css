@@ -1286,3 +1286,28 @@ table { min-width: 1900px; width: 100%; border-collapse: collapse; font-size: 0.
 @media (max-width: 820px) {
   .fc-send-buttons { grid-template-columns: 1fr; }
 }
+
+/* V7 — Mode Tablette 2 : retour au même emplacement que le bouton d'entrée */
+#openFcViewBtn.is-return-mode {
+  background: linear-gradient(180deg, #4f92ff 0%, #2563eb 100%);
+  color: #fff;
+  border-color: rgba(191, 219, 254, 0.24);
+  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.28);
+}
+
+.fc-view-card {
+  margin-top: 14px;
+}
+
+.fc-inline-return-btn {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .fc-layout {
+    grid-template-columns: 1fr;
+  }
+  .fc-view-card {
+    padding: 14px;
+  }
+}
