@@ -236,6 +236,9 @@ textarea { resize: vertical; min-height: 68px; }
   font-weight: 900;
   letter-spacing: 0.02em;
   color: var(--primary-dark);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  font-family: ui-monospace, "SF Mono", "Roboto Mono", monospace;
 }
 .chrono-display.danger {
   color: var(--danger);
@@ -759,4 +762,408 @@ table { min-width: 1800px; width: 100%; border-collapse: collapse; font-size: 0.
 @media (max-width: 720px) {
   .ppa-modal-actions { flex-direction: column; }
   .ppa-confirm-btn { text-align: center; }
+}
+
+/* ─── Résultat partiel modal ──────────────────────────────────────────────── */
+.partial-modal-card {
+  max-width: 600px;
+  border-color: rgba(251, 146, 60, 0.35);
+  box-shadow: 0 24px 60px rgba(0,0,0,0.45), 0 0 40px rgba(251,146,60,0.10);
+}
+.partial-modal-header {
+  text-align: center;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(251, 146, 60, 0.22);
+  margin-bottom: 18px;
+}
+.partial-warning-icon {
+  font-size: 2.4rem;
+  margin-bottom: 8px;
+  filter: drop-shadow(0 0 10px rgba(251,146,60,0.5));
+}
+.partial-modal-title {
+  margin: 0 0 4px;
+  font-size: 1.4rem;
+  color: #fb923c;
+  letter-spacing: -0.02em;
+}
+.partial-modal-subtitle {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.partial-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.partial-section-label {
+  font-weight: 800;
+  font-size: 0.9rem;
+  color: #e2e8f0;
+  margin: 0 0 6px;
+  display: block;
+}
+.partial-pts-hint {
+  font-weight: 600;
+  color: var(--muted);
+  font-size: 0.82rem;
+  margin-left: 6px;
+}
+
+.partial-etapes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(148,163,184,0.12);
+  border-radius: 18px;
+  padding: 10px 12px;
+}
+.partial-etape-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  user-select: none;
+}
+.partial-etape-row:hover { background: rgba(255,255,255,0.07); }
+.partial-etape-row:has(.partial-checkbox:checked) {
+  background: rgba(34, 197, 94, 0.10);
+  border: 1px solid rgba(74, 222, 128, 0.22);
+}
+.partial-checkbox {
+  width: 20px;
+  height: 20px;
+  accent-color: #22c55e;
+  cursor: pointer;
+  flex-shrink: 0;
+  border-radius: 6px;
+  border: none;
+  padding: 0;
+  background: transparent;
+}
+.partial-etape-num {
+  font-weight: 800;
+  font-size: 0.78rem;
+  color: #93c5fd;
+  min-width: 52px;
+  flex-shrink: 0;
+}
+.partial-etape-label {
+  font-size: 0.88rem;
+  color: #e2e8f0;
+  font-weight: 600;
+}
+
+/* Blessure */
+.partial-blessure-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(239, 68, 68, 0.07);
+  border: 1px solid rgba(248, 113, 113, 0.20);
+  cursor: pointer;
+  transition: background 0.15s ease;
+  user-select: none;
+}
+.partial-blessure-row:hover { background: rgba(239,68,68,0.13); }
+.partial-blessure-row:has(.partial-checkbox-danger:checked) {
+  background: rgba(239, 68, 68, 0.16);
+  border-color: rgba(248, 113, 113, 0.40);
+}
+.partial-checkbox-danger { accent-color: #ef4444; }
+.partial-blessure-icon { font-size: 1.3rem; flex-shrink: 0; }
+.partial-blessure-label {
+  font-weight: 800;
+  color: #fca5a5;
+  font-size: 0.92rem;
+}
+
+/* Commentaire */
+.partial-comment-block { display: flex; flex-direction: column; gap: 6px; }
+.partial-comment-block textarea {
+  border-radius: 14px;
+  min-height: 70px;
+}
+
+.partial-modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+.partial-confirm-btn {
+  padding: 12px 20px;
+  border-radius: 18px;
+  font-weight: 900;
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+
+/* ─── Lignes colorées dans le tableau ─────────────────────────────────────── */
+.row-blessure td { background: rgba(239, 68, 68, 0.07); }
+.row-blessure:hover td { background: rgba(239, 68, 68, 0.12) !important; }
+.row-partiel td { background: rgba(251, 146, 60, 0.07); }
+.row-partiel:hover td { background: rgba(251, 146, 60, 0.12) !important; }
+
+.blessure-icon { margin-left: 4px; font-size: 0.9em; }
+
+.etapes-all {
+  color: #86efac;
+  font-weight: 700;
+  font-size: 0.82rem;
+}
+.etapes-partial {
+  color: #fdba74;
+  font-weight: 700;
+  font-size: 0.82rem;
+}
+.etapes-none {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+@media (max-width: 720px) {
+  .partial-modal-actions { flex-direction: column; }
+  .partial-confirm-btn { text-align: center; }
+  .partial-etape-num { min-width: 44px; }
+}
+
+/* ─── Bouton Arrêter chrono ───────────────────────────────────────────────── */
+.stop-btn {
+  border: none;
+  border-radius: 18px;
+  padding: 12px 16px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.15s ease, filter 0.15s ease;
+  flex: 1;
+  background: rgba(239, 68, 68, 0.18);
+  color: #fca5a5;
+  border: 1px solid rgba(248, 113, 113, 0.28);
+}
+.stop-btn:hover { transform: translateY(-1px); filter: brightness(1.08); }
+.stop-btn.is-stopped {
+  background: rgba(239, 68, 68, 0.36);
+  color: #fee2e2;
+  border-color: rgba(248, 113, 113, 0.55);
+}
+
+/* ─── QR Modal ────────────────────────────────────────────────────────────── */
+.qr-modal-card { max-width: 400px; }
+.qr-modal-body { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 8px 0; }
+.qr-candidate-info { text-align: center; }
+.qr-candidate-name { display: block; font-size: 1.3rem; font-weight: 800; color: #fff; }
+.qr-candidate-points { display: block; font-size: 0.9rem; color: var(--muted); margin-top: 4px; }
+.qr-canvas-wrapper {
+  background: #fff;
+  border-radius: 18px;
+  padding: 14px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+}
+.qr-canvas-wrapper canvas { display: block; }
+.qr-hint { text-align: center; color: var(--muted); font-size: 0.85rem; line-height: 1.4; max-width: 300px; }
+.qr-btn {
+  background: rgba(59,130,246,0.18);
+  color: #93c5fd;
+  border: 1px solid rgba(96,165,250,0.28);
+  font-weight: 800;
+  font-size: 0.78rem;
+  padding: 6px 10px;
+  border-radius: 10px;
+}
+.actions-cell { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+
+/* ─── Vue FC tablette 2 ───────────────────────────────────────────────────── */
+.fc-view-card { margin-top: 14px; }
+.fc-mode-btn {
+  border-color: rgba(244,114,182,0.3);
+  color: #f9a8d4;
+}
+.fc-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 10px;
+}
+.fc-panel {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(147,197,253,0.15);
+  border-radius: 22px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.fc-panel h3 { margin: 0; font-size: 1rem; }
+
+/* Scan */
+.fc-scan-placeholder {
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  padding: 24px; text-align: center; color: var(--muted);
+}
+.fc-scan-icon { font-size: 2.4rem; }
+.fc-scan-overlay { position: relative; border-radius: 16px; overflow: hidden; }
+.fc-scan-video { width: 100%; border-radius: 14px; display: block; }
+.fc-scan-frame {
+  position: absolute; inset: 20%; border: 2px solid rgba(96,165,250,0.8);
+  border-radius: 12px; pointer-events: none;
+}
+.fc-stop-scan-btn { width: 100%; margin-top: 8px; }
+
+.fc-scan-result {
+  background: rgba(34,197,94,0.08);
+  border: 1px solid rgba(74,222,128,0.22);
+  border-radius: 18px;
+  padding: 14px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.fc-result-header { display: flex; align-items: center; gap: 12px; }
+.fc-result-check {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: rgba(34,197,94,0.2); color: #86efac;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 900; flex-shrink: 0;
+}
+.fc-result-header strong { font-size: 1.05rem; color: #fff; display: block; }
+.fc-result-meta { font-size: 0.82rem; color: var(--muted); }
+.fc-result-points { font-size: 0.88rem; color: #93c5fd; font-weight: 700; }
+.fc-blessure-alert {
+  background: rgba(239,68,68,0.12); color: #fca5a5;
+  border-radius: 10px; padding: 8px 10px; font-size: 0.84rem; font-weight: 700;
+}
+.fc-rescan-btn { font-size: 0.82rem; padding: 8px 12px; align-self: flex-start; }
+
+/* Inputs FC */
+.fc-label { display: flex; flex-direction: column; gap: 6px; }
+.fc-label span { font-weight: 700; font-size: 0.88rem; color: #e6efff; }
+.fc-label input { border-radius: 14px; }
+
+.fc-chrono-block {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(147,197,253,0.15);
+  border-radius: 18px; padding: 12px 14px;
+}
+.fc-chrono-label { font-size: 0.82rem; color: var(--muted); font-weight: 700; margin: 0 0 10px; }
+.fc-chrono-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.fc-chrono-display {
+  font-size: 2.6rem; font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, monospace;
+  color: #93c5fd; min-width: 70px;
+}
+.fc-chrono-display.fc-chrono-done { color: #86efac; }
+.fc-chrono-btns { display: flex; gap: 8px; flex-wrap: wrap; flex: 1; }
+.fc-chrono-btns button { flex: 1; }
+
+/* Delta FC */
+.fc-delta-block {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(147,197,253,0.15);
+  border-radius: 18px; padding: 14px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.fc-delta-row { display: flex; align-items: center; justify-content: space-between; }
+.fc-delta-label { font-weight: 800; font-size: 0.9rem; color: var(--muted); }
+.fc-delta-value { font-size: 2rem; font-weight: 900; color: #fff; }
+.fc-interp { font-weight: 800; font-size: 0.95rem; }
+.fc-good { color: #86efac; }
+.fc-medium { color: #fbbf24; }
+.fc-bad { color: #f87171; }
+.fc-interp-note { font-size: 0.78rem; color: var(--muted); margin: 0; font-style: italic; }
+.fc-save-btn { min-height: 52px; font-size: 1rem; margin-top: 4px; }
+
+@media (max-width: 980px) {
+  .fc-layout { grid-template-columns: 1fr; }
+}
+
+/* ─── Boutons sous le QR ──────────────────────────────────────────────────── */
+.qr-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 280px;
+}
+.qr-actions button { width: 100%; padding: 13px 16px; font-size: 0.95rem; }
+
+/* ─── Popup FC modal ──────────────────────────────────────────────────────── */
+.fc-popup-card {
+  max-width: 560px;
+  border-color: rgba(244, 114, 182, 0.3);
+}
+.fc-popup-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+/* ─── Écran de choix FC popup ─────────────────────────────────────────────── */
+.fc-choice-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+  margin: 16px 0 8px;
+}
+.fc-choice-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 18px 10px;
+  border-radius: 20px;
+  border: 1px solid rgba(147,197,253,0.2);
+  background: rgba(255,255,255,0.06);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s, transform 0.15s;
+  font-weight: 700;
+}
+.fc-choice-btn:hover { background: rgba(255,255,255,0.12); transform: translateY(-2px); }
+.fc-choice-icon { font-size: 2rem; }
+.fc-choice-label { font-size: 1rem; font-weight: 800; color: #fff; }
+.fc-choice-sub { font-size: 0.75rem; color: var(--muted); text-align: center; line-height: 1.3; }
+.fc-choice-qr { border-color: rgba(96,165,250,0.3); background: rgba(59,130,246,0.08); }
+.fc-choice-qr:hover { background: rgba(59,130,246,0.16); }
+.fc-choice-skip { border-color: rgba(148,163,184,0.2); }
+.fc-choice-skip .fc-choice-label { color: var(--muted); }
+
+@media (max-width: 500px) {
+  .fc-choice-grid { grid-template-columns: 1fr; }
+}
+
+/* ─── FC fields row dans le formulaire ───────────────────────────────────── */
+.fc-fields-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 12px 14px;
+  background: rgba(244, 114, 182, 0.06);
+  border: 1px solid rgba(244, 114, 182, 0.18);
+  border-radius: 18px;
+}
+.fc-fields-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.fc-fields-row span {
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: #f9a8d4;
+}
+.fc-fields-row small {
+  font-weight: 600;
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+@media (max-width: 720px) {
+  .fc-fields-row { grid-template-columns: 1fr; }
 }
