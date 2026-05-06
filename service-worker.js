@@ -1,4 +1,4 @@
-const CACHE_NAME = 'peac-pwa-v27-fc-send';
+const CACHE_NAME = 'peac-pwa-v27-tablette2-fc-correction';
 const ASSETS = [
   './',
   './index.html',
