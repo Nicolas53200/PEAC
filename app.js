@@ -53,6 +53,10 @@ const BAREMES = {
 const form = document.getElementById('evaluationForm');
 const setupView = document.getElementById('setupView');
 const recordsView = document.getElementById('recordsView');
+const candidatesSection = document.getElementById('candidatesSection');
+const evaluationCard = document.getElementById('evaluationCard');
+const jurySection = document.getElementById('jurySection');
+const openCandidateEvaluationBtn = document.getElementById('openCandidateEvaluationBtn');
 const terrainMode = document.getElementById('terrainMode');
 const openTerrainBtn = document.getElementById('openTerrainBtn');
 const exitTerrainBtn = document.getElementById('exitTerrainBtn');
@@ -140,6 +144,7 @@ const fields = {
   sexe: document.getElementById('sexe'),
   fonction: document.getElementById('fonction'),
   distances: document.getElementById('distances'),
+  fc0: document.getElementById('fc0'),
   fc1: document.getElementById('fc1'),
   fc2: document.getElementById('fc2'),
   observation: document.getElementById('observation'),
@@ -302,6 +307,21 @@ function renderCandidates() {
 
 let _editingRecordId = null;
 
+function showEvaluationCard(showJury = false) {
+  if (evaluationCard) evaluationCard.hidden = false;
+  if (jurySection) jurySection.hidden = !showJury;
+}
+
+function hideEvaluationWorkspace() {
+  if (evaluationCard) evaluationCard.hidden = true;
+  if (jurySection) jurySection.hidden = true;
+}
+
+function openCandidateEvaluationPanel() {
+  // Le bouton "Évaluation du candidat" bascule directement sur le poste jury pleine page.
+  enterTerrainMode();
+}
+
 function selectCandidate(candidateId) {
   const cand = candidates.find((c) => c.id === candidateId);
   if (!cand) return;
@@ -323,6 +343,7 @@ function selectCandidate(candidateId) {
 
   if (existingRecord) {
     setDistanceCounter(existingRecord.distances || 0);
+    fields.fc0.value = existingRecord.fc0 || '';
     fields.fc1.value = existingRecord.fc1 || '';
     fields.fc2.value = existingRecord.fc2 || '';
     fields.observation.value = existingRecord.observation || '';
@@ -340,6 +361,7 @@ function selectCandidate(candidateId) {
 
   calculatePreview();
   updateTerrainCandidateSummary();
+  showEvaluationCard(false);
   switchMainView('setup');
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -549,15 +571,22 @@ function buildEtapesCell(record) {
   return `<span class="etapes-partial">Ét. ${nums.join(', ')}</span>`;
 }
 
+
+function buildCandidateProgressText() {
+  const passed = candidates.filter((c) => c.status === 'done').length || records.length;
+  const remaining = candidates.filter((c) => c.status !== 'done').length;
+  return `${passed} candidat${passed > 1 ? 's' : ''} passé${passed > 1 ? 's' : ''} • ${remaining} candidat${remaining > 1 ? 's' : ''} restant${remaining > 1 ? 's' : ''}`;
+}
+
 function renderRecords() {
   recordsBody.innerHTML = '';
 
   if (records.length === 0) {
     const row = document.createElement('tr');
     row.className = 'empty-row';
-    row.innerHTML = '<td colspan="19">Aucune évaluation enregistrée pour le moment.</td>';
+    row.innerHTML = '<td colspan="20">Aucune évaluation enregistrée pour le moment.</td>';
     recordsBody.appendChild(row);
-    statsLine.textContent = '0 fiche';
+    statsLine.textContent = buildCandidateProgressText();
     renderRanking();
     return;
   }
@@ -587,6 +616,7 @@ function renderRecords() {
       <td>${formatNumber(record.basePoints)}</td>
       <td>${formatNumber(record.distancePoints)}</td>
       <td><strong>${formatNumber(record.totalPoints)}</strong></td>
+      <td>${escapeHtml(record.fc0 || '')}</td>
       <td>${escapeHtml(record.fc1 || '')}</td>
       <td>${escapeHtml(record.fc2 || '')}</td>
       <td>${escapeHtml(record.observation || '')}</td>
@@ -598,8 +628,7 @@ function renderRecords() {
     recordsBody.appendChild(row);
   });
 
-  const total = records.reduce((sum, entry) => sum + Number(entry.totalPoints), 0);
-  statsLine.textContent = `${records.length} fiche${records.length > 1 ? 's' : ''} • ${formatNumber(total)} points cumulés`;
+  statsLine.textContent = buildCandidateProgressText();
   renderRanking();
 }
 
@@ -683,6 +712,7 @@ function switchMainView(view) {
   const showSetup = view === 'setup';
   setupView.hidden = !showSetup;
   recordsView.hidden = showSetup;
+  if (candidatesSection) candidatesSection.hidden = !showSetup;
   window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
 }
 
@@ -746,7 +776,7 @@ function resetForm() {
   if (formTitle) formTitle.textContent = 'Nouvelle évaluation';
   const submitBtn = document.getElementById('addWithoutFullscreenBtn');
   if (submitBtn) submitBtn.textContent = 'Ajouter l\'évaluation';
-  fields.nom.focus();
+  if (!evaluationCard || !evaluationCard.hidden) fields.nom.focus();
 }
 
 function buildCsvContent() {
@@ -755,7 +785,7 @@ function buildCsvContent() {
     'Rang', 'Nom', 'Prénom', 'Centre', 'Âge', 'Sexe', 'Fonction',
     'Étapes validées', 'Distances (18m)', 'Chrono', 'Tranche',
     'Barème', 'Points initiaux', 'Points distances', 'Total',
-    'Blessure', 'FC1', 'FC2', 'Observation'
+    'Blessure', 'FC0', 'FC1', 'FC2', 'Observation'
   ];
 
   const rows = ranked.map((r, index) => {
@@ -768,7 +798,7 @@ function buildCsvContent() {
       index + 1, r.nom, r.prenom, r.centre, r.age, r.sexeLabel || '', r.fonctionLabel,
       etapesStr, r.distances, r.chrono || '', r.ageRange,
       r.multiplier, r.basePoints, r.distancePoints, r.totalPoints,
-      r.blessure ? 'Oui' : 'Non', r.fc1 || '', r.fc2 || '', r.observation || ''
+      r.blessure ? 'Oui' : 'Non', r.fc0 || '', r.fc1 || '', r.fc2 || '', r.observation || ''
     ];
   });
 
@@ -819,6 +849,7 @@ function buildPrintHtml() {
       <td>${formatNumber(record.distancePoints)}</td>
       <td>${formatNumber(record.totalPoints)}</td>
       <td>${blessureStr}</td>
+      <td>${escapeHtml(record.fc0 || '')}</td>
       <td>${escapeHtml(record.fc1 || '')}</td>
       <td>${escapeHtml(record.fc2 || '')}</td>
       <td>${escapeHtml(record.observation || '')}</td>
@@ -849,7 +880,7 @@ function buildPrintHtml() {
           <th>Rang</th><th>Nom</th><th>Prénom</th><th>Centre</th><th>Âge</th><th>Sexe</th><th>Fonction</th>
           <th>Étapes</th><th>Distances</th><th>Chrono</th><th>Tranche</th><th>Barème</th>
           <th>Base</th><th>Pts dist.</th><th>Total</th><th>Blessure</th>
-          <th>FC1</th><th>FC2</th><th>Observation</th>
+          <th>FC0</th><th>FC1</th><th>FC2</th><th>Observation</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
@@ -1191,6 +1222,7 @@ function buildRecordFromForm(partialData = null) {
     ppa: ppaMode,
     etapesValidees,
     blessure,
+    fc0: normalizeText(fields.fc0.value),
     fc1: normalizeText(fields.fc1.value),
     fc2: normalizeText(fields.fc2.value),
     observation: fullObs,
@@ -1209,13 +1241,14 @@ const FC_POPUP_DURATION = 60000;
 
 function openFcPopup(onConfirm) {
   const modal = document.getElementById('fcPopupModal');
-  if (!modal) { onConfirm({ fc1: '', fc2: '' }); return; }
+  if (!modal) { onConfirm({ fc0: '', fc1: '', fc2: '' }); return; }
   _fcCallback = onConfirm;
 
   // Afficher l'écran de choix, masquer le formulaire
   document.getElementById('fcPopupChoice').hidden = false;
   document.getElementById('fcPopupForm').hidden = true;
 
+  document.getElementById('fcPopupInput0').value = '';
   document.getElementById('fcPopupInput1').value = '';
   document.getElementById('fcPopupInput2').value = '';
   document.getElementById('fcPopupDelta').textContent = '—';
@@ -1307,33 +1340,34 @@ document.getElementById('fcChoiceT1Btn')?.addEventListener('click', () => {
 document.getElementById('fcChoiceT2Btn')?.addEventListener('click', () => {
   const cb = _fcCallback;
   closeFcPopup();
-  if (cb) cb({ fc1: '', fc2: '', useQr: true });
+  if (cb) cb({ fc0: '', fc1: '', fc2: '', useQr: true });
 });
 
 // Choix : passer
 document.getElementById('fcChoiceSkipBtn')?.addEventListener('click', () => {
   const cb = _fcCallback;
   closeFcPopup();
-  if (cb) cb({ fc1: '', fc2: '' });
+  if (cb) cb({ fc0: '', fc1: '', fc2: '' });
 });
 
 document.getElementById('fcPopupSkipBtn')?.addEventListener('click', () => {
   const cb = _fcCallback;
   closeFcPopup();
-  if (cb) cb({ fc1: '', fc2: '' });
+  if (cb) cb({ fc0: '', fc1: '', fc2: '' });
 });
 document.getElementById('fcPopupConfirmBtn')?.addEventListener('click', () => {
+  const fc0 = document.getElementById('fcPopupInput0').value.trim();
   const fc1 = document.getElementById('fcPopupInput1').value.trim();
   const fc2 = document.getElementById('fcPopupInput2').value.trim();
   const cb = _fcCallback;
   closeFcPopup();
-  if (cb) cb({ fc1, fc2 });
+  if (cb) cb({ fc0, fc1, fc2 });
 });
 document.getElementById('fcPopupModal')?.addEventListener('click', (e) => {
   if (e.target === document.getElementById('fcPopupModal')) {
     const cb = _fcCallback;
     closeFcPopup();
-    if (cb) cb({ fc1: '', fc2: '' });
+    if (cb) cb({ fc0: '', fc1: '', fc2: '' });
   }
 });
 
@@ -1343,9 +1377,10 @@ function attemptSave(afterSave) {
   const distances = Number(fields.distances.value || 0);
 
   function doFcThenSave(partialData) {
-    openFcPopup(({ fc1, fc2, useQr }) => {
+    openFcPopup(({ fc0, fc1, fc2, useQr }) => {
       const record = buildRecordFromForm(partialData);
       if (!record) return;
+      record.fc0 = fc0 || normalizeText(fields.fc0.value);
       record.fc1 = fc1 || normalizeText(fields.fc1.value);
       record.fc2 = fc2 || normalizeText(fields.fc2.value);
       if (record.fc1 && record.fc2) {
@@ -1402,13 +1437,15 @@ recordsBody.addEventListener('click', (event) => {
 });
 
 resetFormBtn.addEventListener('click', resetForm);
-openTerrainBtn.addEventListener('click', enterTerrainMode);
+if (openTerrainBtn) openTerrainBtn.addEventListener('click', enterTerrainMode);
 exitTerrainBtn.addEventListener('click', () => exitTerrainMode('records'));
 saveTerrainBtn.addEventListener('click', saveCurrentEvaluation);
 if (saveTerrainTopBtn) saveTerrainTopBtn.addEventListener('click', saveCurrentEvaluation);
-newEvaluationBtn.addEventListener('click', () => switchMainView('setup'));
+newEvaluationBtn.addEventListener('click', () => { resetForm(); hideEvaluationWorkspace(); switchMainView('setup'); });
 document.getElementById('backToFormBtn')?.addEventListener('click', () => switchMainView('setup'));
 document.getElementById('viewResultsBtn')?.addEventListener('click', () => switchMainView('records'));
+document.getElementById('viewResultsFromCandidatesBtn')?.addEventListener('click', () => switchMainView('records'));
+openCandidateEvaluationBtn?.addEventListener('click', openCandidateEvaluationPanel);
 exportCsvBtn.addEventListener('click', exportCsv);
 exportPdfBtn.addEventListener('click', exportPdfView);
 shareBtn.addEventListener('click', shareRecords);
@@ -1506,13 +1543,14 @@ if ('serviceWorker' in navigator) {
 renderBaremesTable();
 renderRecords();
 renderCandidates();
-switchMainView(records.length ? 'records' : 'setup');
+switchMainView('setup');
 // Forcer état propre du chrono au chargement
 chronoStopped = false;
 startButtons.forEach((btn) => { btn.disabled = false; btn.style.opacity = ''; });
 pauseButtons.forEach((btn) => { btn.disabled = false; btn.style.opacity = ''; });
 stopButtons.forEach((btn) => btn.classList.remove('is-stopped'));
 resetForm();
+hideEvaluationWorkspace();
 
 // ─── Candidates UI wiring ────────────────────────────────────────────────────
 
@@ -1523,7 +1561,11 @@ document.getElementById('tabDone')?.addEventListener('click', () => {
   activeCandidateTab = 'done'; renderCandidates();
 });
 
-document.getElementById('openAddCandidateBtn')?.addEventListener('click', openAddCandidateModal);
+document.getElementById('openAddCandidateBtn')?.addEventListener('click', () => {
+  resetForm();
+  showEvaluationCard(false);
+  openAddCandidateModal();
+});
 document.getElementById('closeAddCandidateBtn')?.addEventListener('click', closeAddCandidateModal);
 document.getElementById('closeAddCandidateBtn2')?.addEventListener('click', closeAddCandidateModal);
 document.getElementById('addCandidateModal')?.addEventListener('click', (e) => {
@@ -1538,7 +1580,11 @@ document.getElementById('addCandidateForm')?.addEventListener('submit', (e) => {
   const age = Number(document.getElementById('candAge').value) || '';
   const sexe = document.getElementById('candSexe').value;
   const fonction = document.getElementById('candFonction').value;
-  if (addCandidate({ nom, prenom, centre, age, sexe, fonction })) closeAddCandidateModal();
+  if (addCandidate({ nom, prenom, centre, age, sexe, fonction })) {
+    closeAddCandidateModal();
+    const created = getCandidateByName(nom, prenom);
+    if (created) selectCandidate(created.id);
+  }
 });
 
 document.getElementById('importExcelBtn')?.addEventListener('click', () => {
@@ -1693,7 +1739,7 @@ function closeFcView() {
   document.getElementById('fcScanPlaceholder').hidden = false;
   document.getElementById('fcForm').reset();
   resetFcChrono();
-  switchMainView(records.length ? 'records' : 'setup');
+  switchMainView('setup');
 }
 
 function populateFcForm(payload) {
@@ -1704,6 +1750,7 @@ function populateFcForm(payload) {
   document.getElementById('fcBlessureAlert').hidden = !payload.blessure;
   document.getElementById('fcScanPlaceholder').hidden = true;
   document.getElementById('fcScanResult').hidden = false;
+  document.getElementById('fcInput0').value = '';
   document.getElementById('fcInput1').value = '';
   document.getElementById('fcInput2').value = '';
   document.getElementById('fcDeltaDisplay').textContent = '—';
@@ -1789,6 +1836,7 @@ function resetFcChrono() {
 
 function saveFcRecord() {
   if (!fcRecordInProgress) return;
+  const fc0 = document.getElementById('fcInput0').value.trim();
   const fc1 = document.getElementById('fcInput1').value.trim();
   const fc2 = document.getElementById('fcInput2').value.trim();
   if (!fc1 || !fc2) { alert('Saisis FC1 et FC2 avant d\'enregistrer.'); return; }
@@ -1796,6 +1844,7 @@ function saveFcRecord() {
   // Chercher si le record existe déjà (même id)
   const existing = records.find((r) => r.id === fcRecordInProgress.id);
   if (existing) {
+    existing.fc0 = fc0;
     existing.fc1 = fc1;
     existing.fc2 = fc2;
     existing.fcDelta = parseInt(fc2) - parseInt(fc1);
@@ -1824,7 +1873,7 @@ function saveFcRecord() {
     basePoints: fcRecordInProgress.etapes || 5,
     distancePoints: 0,
     totalPoints: fcRecordInProgress.totalPoints,
-    fc1, fc2,
+    fc0, fc1, fc2,
     fcDelta: parseInt(fc2) - parseInt(fc1),
     blessure: fcRecordInProgress.blessure || false,
     etapesValidees: null,
@@ -1906,6 +1955,10 @@ document.getElementById('fcStopScanBtn')?.addEventListener('click', stopQrScan);
 document.getElementById('fcStartChronoBtn')?.addEventListener('click', startFcChrono);
 document.getElementById('fcResetChronoBtn')?.addEventListener('click', resetFcChrono);
 document.getElementById('fcSaveBtn')?.addEventListener('click', saveFcRecord);
+document.getElementById('fcViewResultsBtn')?.addEventListener('click', () => switchMainView('records'));
+document.getElementById('fcExportCsvBtn')?.addEventListener('click', exportCsv);
+document.getElementById('fcExportPdfBtn')?.addEventListener('click', exportPdfView);
+document.getElementById('fcShareBtn')?.addEventListener('click', shareRecords);
 document.getElementById('fcInput1')?.addEventListener('input', computeFcDelta);
 document.getElementById('fcInput2')?.addEventListener('input', computeFcDelta);
 
