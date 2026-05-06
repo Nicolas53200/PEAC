@@ -21,7 +21,10 @@
             <p class="subtitle">Saisie des évaluations, chrono terrain et comptage rapide des allers-retours de 18 m pour le jury.</p>
           </div>
         </div>
-        <div class="badge">Hors ligne prêt</div>
+        <div class="topbar-actions">
+          <div class="badge">Hors ligne prêt</div>
+          <button id="openFcViewBtn" class="ghost-btn fc-mode-btn" type="button">💓 Mode Tablette 2 — FC</button>
+        </div>
       </header>
 
       <section class="card candidates-card full-span" id="candidatesSection">
@@ -32,6 +35,7 @@
           </div>
           <div class="table-actions">
             <button id="openAddCandidateBtn" class="primary-btn" type="button">+ Ajouter un candidat</button>
+            <button id="viewResultsFromCandidatesBtn" class="ghost-btn" type="button">📋 Voir les résultats</button>
             <button id="importExcelBtn" class="ghost-btn" type="button">📥 Importer Excel</button>
             <input id="importExcelInput" type="file" accept=".xlsx,.xls,.ods,.csv" hidden />
             <button id="clearCandidatesBtn" class="danger-btn" type="button">Vider la liste</button>
@@ -52,7 +56,7 @@
       </section>
 
       <main id="setupView" class="layout">
-        <section class="card form-card">
+        <section class="card form-card" id="evaluationCard" hidden>
           <div class="section-head">
             <h2>Nouvelle évaluation</h2>
             <button id="resetFormBtn" class="ghost-btn" type="button">Réinitialiser</button>
@@ -108,6 +112,10 @@
 
             <div class="fc-fields-row full-width">
               <label>
+                <span>FC0 <small>(avant l'épreuve)</small></span>
+                <input type="text" id="fc0" name="fc0" placeholder="bpm — optionnel" />
+              </label>
+              <label>
                 <span>FC1 <small>(juste après l'épreuve)</small></span>
                 <input type="text" id="fc1" name="fc1" placeholder="bpm — optionnel" />
               </label>
@@ -130,7 +138,7 @@
               ⚠️ Mode <strong>PPA actif</strong> — Calcul simplifié : 5 pts de base + 1 pt par distance (barèmes non appliqués)
             </div>
 
-            <div class="preview full-width">
+            <div class="preview full-width" hidden>
               <div>
                 <span>Tranche d'âge</span>
                 <strong id="ageRange">—</strong>
@@ -153,9 +161,13 @@
               </div>
             </div>
           </form>
+
+          <div class="evaluation-entry-actions">
+            <button id="openCandidateEvaluationBtn" class="primary-btn" type="button">▶ Évaluation du candidat</button>
+          </div>
         </section>
 
-        <section class="stack-col">
+        <section class="stack-col" id="jurySection" hidden>
           <section class="card jury-card">
             <div class="section-head compact-head">
               <div>
@@ -208,10 +220,8 @@
           </section>
 
           <div class="jury-actions">
-            <button id="openTerrainBtn" class="primary-btn" type="button">Mode plein écran jury</button>
-            <button id="addWithoutFullscreenBtn" class="ghost-btn" type="submit" form="evaluationForm">Ajouter l'évaluation</button>
+            <button id="addWithoutFullscreenBtn" class="primary-btn" type="submit" form="evaluationForm">Ajouter l'évaluation</button>
             <button id="viewResultsBtn" class="ghost-btn" type="button">📋 Voir les résultats</button>
-            <button id="openFcViewBtn" class="ghost-btn fc-mode-btn" type="button">💓 Mode Tablette 2 — FC</button>
           </div>
         </section>
       </main>
@@ -224,7 +234,6 @@
           </div>
           <div class="table-actions">
             <button id="newEvaluationBtn" class="primary-btn" type="button">Nouvelle évaluation</button>
-            <button id="backToFormBtn" class="ghost-btn" type="button">← Retour formulaire</button>
             <button id="exportCsvBtn" class="ghost-btn" type="button">Exporter CSV</button>
             <button id="exportPdfBtn" class="ghost-btn" type="button">Fiche PDF globale</button>
             <button id="shareBtn" class="ghost-btn" type="button">Partager / e-mail</button>
@@ -256,6 +265,7 @@
                 <th>Base</th>
                 <th>Pts distances</th>
                 <th>Total</th>
+                <th>FC0</th>
                 <th>FC1</th>
                 <th>FC2</th>
                 <th>Observation</th>
@@ -273,14 +283,14 @@
       <div class="terrain-shell">
         <div class="terrain-topbar">
           <div>
-            <p class="terrain-label">Mode jury plein écran</p>
+            <p class="terrain-label">Évaluation du candidat</p>
             <h2 id="terrainCandidateName">Nom Prénom</h2>
             <p id="terrainCandidateMeta" class="terrain-meta">Centre · Fonction · Sexe</p>
           </div>
           <div class="terrain-top-actions">
             <button id="openBaremesTerrainBtn" class="ghost-btn" type="button">📊 Barèmes</button>
             <button id="saveTerrainTopBtn" class="primary-btn" type="button">Enregistrer le résultat</button>
-            <button id="exitTerrainBtn" class="ghost-btn" type="button">Retour résultats</button>
+            <button id="exitTerrainBtn" class="ghost-btn" type="button">Voir les résultats</button>
           </div>
         </div>
 
@@ -542,9 +552,9 @@
       <div class="section-head">
         <div>
           <h2>💓 Mode Tablette 2 — Fréquence cardiaque</h2>
-          <p class="table-meta">Scanner le QR de la tablette 1, puis saisir FC1 et FC2 après 1 minute de récupération.</p>
+          <p class="table-meta">Scanner le QR de la tablette 1, puis saisir FC0, FC1 et FC2 après 1 minute de récupération.</p>
         </div>
-        <button id="closeFcViewBtn" class="ghost-btn" type="button">← Retour</button>
+        <button id="closeFcViewBtn" class="primary-btn" type="button">← Mode Tablette 1</button>
       </div>
 
       <div class="fc-layout">
@@ -584,6 +594,11 @@
 
           <form id="fcForm">
             <label class="fc-label">
+              <span>FC0 — Avant l'épreuve (bpm)</span>
+              <input type="number" id="fcInput0" min="40" max="220" placeholder="ex : 82" />
+            </label>
+
+            <label class="fc-label">
               <span>FC1 — Juste après l'épreuve (bpm)</span>
               <input type="number" id="fcInput1" min="40" max="220" placeholder="ex : 178" />
             </label>
@@ -615,7 +630,17 @@
             <p class="fc-interp-note">⚠️ Grille d'interprétation provisoire — à mettre à jour avec la grille officielle.</p>
           </div>
 
-          <button id="fcSaveBtn" class="primary-btn fc-save-btn" type="button">Enregistrer FC1 + FC2</button>
+          <button id="fcSaveBtn" class="primary-btn fc-save-btn" type="button">Enregistrer FC0 + FC1 + FC2</button>
+
+          <div class="fc-send-actions" aria-label="Actions d'envoi tablette 2">
+            <p class="fc-send-title">Envoyer les résultats</p>
+            <div class="fc-send-buttons">
+              <button id="fcViewResultsBtn" class="ghost-btn" type="button">📋 Voir les résultats</button>
+              <button id="fcExportCsvBtn" class="ghost-btn" type="button">Exporter CSV</button>
+              <button id="fcExportPdfBtn" class="ghost-btn" type="button">Fiche PDF globale</button>
+              <button id="fcShareBtn" class="ghost-btn" type="button">Partager / e-mail</button>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -626,7 +651,7 @@
         <div class="partial-modal-header">
           <div class="partial-warning-icon">💓</div>
           <h2 class="partial-modal-title" style="color:#f472b6">Fréquence cardiaque</h2>
-          <p class="partial-modal-subtitle">Comment souhaitez-vous saisir FC1 et FC2 ?</p>
+          <p class="partial-modal-subtitle">Comment souhaitez-vous saisir FC0, FC1 et FC2 ?</p>
         </div>
 
         <!-- Écran de choix -->
@@ -651,6 +676,11 @@
         <!-- Formulaire FC (affiché après choix tablette 1) -->
         <div id="fcPopupForm" hidden>
           <div class="fc-popup-body">
+            <label class="fc-label">
+              <span>FC0 — Avant l'épreuve (bpm)</span>
+              <input type="number" id="fcPopupInput0" min="40" max="220" placeholder="ex : 82" />
+            </label>
+
             <label class="fc-label">
               <span>FC1 — Juste après l'épreuve (bpm)</span>
               <input type="number" id="fcPopupInput1" min="40" max="220" placeholder="ex : 178" />
