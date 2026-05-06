@@ -1608,7 +1608,15 @@ document.getElementById('candidatesDoneList')?.addEventListener('click', handleC
 function handleCandidateListClick(e) {
   const selectBtn = e.target.closest('[data-cand-id]');
   const deleteBtn = e.target.closest('[data-cand-delete]');
-  if (selectBtn) selectCandidate(selectBtn.getAttribute('data-cand-id'));
+  if (selectBtn) {
+    const candidateId = selectBtn.getAttribute('data-cand-id');
+    const fcModeOpen = document.getElementById('fcView') && !document.getElementById('fcView').hidden;
+    if (fcModeOpen) {
+      openFcForCandidate(candidateId);
+    } else {
+      selectCandidate(candidateId);
+    }
+  }
   if (deleteBtn) {
     const id = deleteBtn.getAttribute('data-cand-delete');
     candidates = candidates.filter((c) => c.id !== id);
@@ -1728,6 +1736,8 @@ function openFcView() {
   document.getElementById('fcView').hidden = false;
   document.getElementById('setupView').hidden = true;
   document.getElementById('recordsView').hidden = true;
+  if (candidatesSection) candidatesSection.hidden = false;
+  setTablet2ButtonState(true);
   window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
 }
 
@@ -1739,6 +1749,7 @@ function closeFcView() {
   document.getElementById('fcScanPlaceholder').hidden = false;
   document.getElementById('fcForm').reset();
   resetFcChrono();
+  setTablet2ButtonState(false);
   switchMainView('setup');
 }
 
@@ -1746,16 +1757,43 @@ function populateFcForm(payload) {
   fcRecordInProgress = payload;
   document.getElementById('fcNom').textContent = `${payload.prenom} ${payload.nom}`;
   document.getElementById('fcCentre').textContent = payload.centre || '—';
-  document.getElementById('fcPoints').textContent = `${formatNumber(payload.totalPoints)} pts · ${payload.distances} navette(s)`;
+  const pts = Number.isFinite(Number(payload.totalPoints)) ? formatNumber(payload.totalPoints) + ' pts' : 'Évaluation à compléter';
+  const dist = payload.distances !== undefined && payload.distances !== '' ? ` · ${payload.distances} navette(s)` : '';
+  document.getElementById('fcPoints').textContent = `${pts}${dist}`;
   document.getElementById('fcBlessureAlert').hidden = !payload.blessure;
   document.getElementById('fcScanPlaceholder').hidden = true;
   document.getElementById('fcScanResult').hidden = false;
-  document.getElementById('fcInput0').value = '';
-  document.getElementById('fcInput1').value = '';
-  document.getElementById('fcInput2').value = '';
-  document.getElementById('fcDeltaDisplay').textContent = '—';
-  document.getElementById('fcInterpretation').textContent = '';
+  document.getElementById('fcInput0').value = payload.fc0 || '';
+  document.getElementById('fcInput1').value = payload.fc1 || '';
+  document.getElementById('fcInput2').value = payload.fc2 || '';
+  computeFcDelta();
   resetFcChrono();
+}
+
+function setTablet2ButtonState(active) {
+  const btn = document.getElementById('openFcViewBtn');
+  if (!btn) return;
+  btn.textContent = active ? '← Mode Tablette 1' : '💓 Mode Tablette 2 — FC';
+  btn.classList.toggle('is-return-mode', active);
+  btn.dataset.mode = active ? 'tablet2' : 'tablet1';
+}
+
+function openFcForCandidate(candidateId) {
+  const cand = candidates.find((c) => c.id === candidateId);
+  if (!cand) return;
+  const existingRecord = records.find(
+    (r) => r.nom.toLowerCase() === cand.nom.toLowerCase()
+      && r.prenom.toLowerCase() === cand.prenom.toLowerCase()
+  );
+
+  if (!existingRecord) {
+    alert("Ce candidat n'a pas encore d'évaluation enregistrée. Passe par le mode Tablette 1 pour créer son évaluation complète.");
+    return;
+  }
+
+  openFcView();
+  populateFcForm(existingRecord);
+  document.getElementById('fcInput0')?.focus();
 }
 
 function computeFcDelta() {
@@ -1948,14 +1986,22 @@ function scanQrFrame() {
 }
 
 // Event listeners FC view
-document.getElementById('openFcViewBtn')?.addEventListener('click', openFcView);
+document.getElementById('openFcViewBtn')?.addEventListener('click', () => {
+  const fcView = document.getElementById('fcView');
+  if (fcView && !fcView.hidden) closeFcView();
+  else openFcView();
+});
 document.getElementById('closeFcViewBtn')?.addEventListener('click', closeFcView);
 document.getElementById('fcScanBtn')?.addEventListener('click', startQrScan);
 document.getElementById('fcStopScanBtn')?.addEventListener('click', stopQrScan);
 document.getElementById('fcStartChronoBtn')?.addEventListener('click', startFcChrono);
 document.getElementById('fcResetChronoBtn')?.addEventListener('click', resetFcChrono);
 document.getElementById('fcSaveBtn')?.addEventListener('click', saveFcRecord);
-document.getElementById('fcViewResultsBtn')?.addEventListener('click', () => switchMainView('records'));
+document.getElementById('fcViewResultsBtn')?.addEventListener('click', () => {
+  document.getElementById('fcView').hidden = true;
+  setTablet2ButtonState(false);
+  switchMainView('records');
+});
 document.getElementById('fcExportCsvBtn')?.addEventListener('click', exportCsv);
 document.getElementById('fcExportPdfBtn')?.addEventListener('click', exportPdfView);
 document.getElementById('fcShareBtn')?.addEventListener('click', shareRecords);
