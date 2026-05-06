@@ -1,4 +1,4 @@
-const CACHE_NAME = 'peac-pwa-v25-qrfix';
+const CACHE_NAME = 'peac-pwa-v27-fc-send';
 const ASSETS = [
   './',
   './index.html',
