@@ -1,10 +1,18 @@
 const STORAGE_KEY = 'peac-evaluations-v10';
 const CANDIDATES_KEY = 'peac-candidates-v1';
-const BASE_POINTS = 5;
+const BASE_POINTS_MAX = 5;
 const CHRONO_PRESETS = {
   F: { label: 'Femme', durationMs: 5 * 60 * 1000 + 30 * 1000 },
   H: { label: 'Homme', durationMs: 4 * 60 * 1000 },
 };
+
+const ETAPES = [
+  { id: 'e1', label: '10 ondulations' },
+  { id: 'e2', label: 'Passage du banc A/R' },
+  { id: 'e3', label: '10 Steps avec 2 sacs' },
+  { id: 'e4', label: '10 touchés alternatifs (1m60)' },
+  { id: 'e5', label: 'Traction charge 20 kg A/R' },
+];
 
 const BAREMES = {
   1: {
@@ -99,6 +107,10 @@ const resetButtons = [
   document.getElementById('resetChronoBtn'),
   document.getElementById('terrainResetChronoBtn'),
 ];
+const stopButtons = [
+  document.getElementById('stopChronoBtn'),
+  document.getElementById('terrainStopChronoBtn'),
+];
 const presetFemmeButtons = [
   document.getElementById('presetFemmeBtn'),
   document.getElementById('terrainPresetFemmeBtn'),
@@ -145,6 +157,53 @@ let selectedChronoSexe = 'F';
 let beepPlayed = false;
 let distanceCounter = 0;
 
+// Callback à appeler après confirmation du popup résultat partiel
+let _partialResultCallback = null;
+
+// ─── Résultat partiel (blessure / arrêt) ─────────────────────────────────────
+
+function openPartialResultModal(onConfirm) {
+  const modal = document.getElementById('partialResultModal');
+  if (!modal) return;
+
+  // Reset checkboxes et champs
+  ETAPES.forEach((e) => {
+    const cb = document.getElementById(`etape_${e.id}`);
+    if (cb) cb.checked = false;
+  });
+  const blessureEl = document.getElementById('partialBlessure');
+  const commentEl = document.getElementById('partialComment');
+  if (blessureEl) blessureEl.checked = false;
+  if (commentEl) commentEl.value = '';
+
+  _partialResultCallback = onConfirm;
+  modal.hidden = false;
+  requestAnimationFrame(() => modal.classList.add('is-visible'));
+}
+
+function closePartialResultModal() {
+  const modal = document.getElementById('partialResultModal');
+  if (!modal) return;
+  modal.classList.remove('is-visible');
+  setTimeout(() => { modal.hidden = true; }, 180);
+  // _partialResultCallback géré par le listener confirm/cancel — pas effacé ici
+}
+
+function collectPartialResult() {
+  const etapesValidees = ETAPES.filter((e) => {
+    const cb = document.getElementById(`etape_${e.id}`);
+    return cb && cb.checked;
+  });
+  const blessure = document.getElementById('partialBlessure')?.checked || false;
+  const comment = document.getElementById('partialComment')?.value.trim() || '';
+  return { etapesValidees, blessure, comment };
+}
+
+function buildEtapesLabel(etapesValidees) {
+  if (!etapesValidees || etapesValidees.length === 0) return 'Aucune étape';
+  return etapesValidees.map((e, i) => `Ét.${ETAPES.indexOf(e) + 1}`).join(' ');
+}
+
 // ─── Candidates ──────────────────────────────────────────────────────────────
 
 function loadCandidates() {
@@ -162,11 +221,6 @@ function saveCandidates() {
 function generateCandidateId() {
   if (window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID();
   return `cand-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
-}
-
-function markCandidateDone(candidateId) {
-  const cand = candidates.find((c) => c.id === candidateId);
-  if (cand) { cand.status = 'done'; saveCandidates(); renderCandidates(); }
 }
 
 function getCandidateByName(nom, prenom) {
@@ -246,17 +300,46 @@ function renderCandidates() {
   }
 }
 
+let _editingRecordId = null;
+
 function selectCandidate(candidateId) {
   const cand = candidates.find((c) => c.id === candidateId);
   if (!cand) return;
+
+  // Chercher le record existant pour pré-remplir aussi les données d'évaluation
+  const existingRecord = records.find(
+    (r) => r.nom.toLowerCase() === cand.nom.toLowerCase()
+      && r.prenom.toLowerCase() === cand.prenom.toLowerCase()
+  );
+
+  _editingRecordId = existingRecord ? existingRecord.id : null;
+
   fields.nom.value = cand.nom;
   fields.prenom.value = cand.prenom;
   fields.centre.value = cand.centre || '';
-  fields.age.value = cand.age || '';
-  fields.fonction.value = cand.fonction || '';
-  if (cand.sexe) setChronoPreset(cand.sexe);
-  setDistanceCounter(0);
+  fields.age.value = existingRecord ? existingRecord.age : (cand.age || '');
+  fields.fonction.value = existingRecord ? existingRecord.fonction : (cand.fonction || '');
+  if (cand.sexe || existingRecord?.sexe) setChronoPreset(cand.sexe || existingRecord.sexe);
+
+  if (existingRecord) {
+    setDistanceCounter(existingRecord.distances || 0);
+    fields.fc1.value = existingRecord.fc1 || '';
+    fields.fc2.value = existingRecord.fc2 || '';
+    fields.observation.value = existingRecord.observation || '';
+  } else {
+    setDistanceCounter(0);
+  }
+
+  // Indicateur visuel mode édition
+  const formTitle = document.querySelector('#setupView .form-card .section-head h2');
+  if (formTitle) {
+    formTitle.textContent = _editingRecordId ? '✏️ Modifier l\'évaluation' : 'Nouvelle évaluation';
+  }
+  const submitBtn = document.getElementById('addWithoutFullscreenBtn');
+  if (submitBtn) submitBtn.textContent = _editingRecordId ? 'Enregistrer les modifications' : 'Ajouter l\'évaluation';
+
   calculatePreview();
+  updateTerrainCandidateSummary();
   switchMainView('setup');
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -278,17 +361,14 @@ function closeAddCandidateModal() {
 }
 
 function calculateAgeFromDob(dob) {
-  // Accepts JS Date, Excel serial number, or string DD/MM/YYYY
   let date;
   if (dob instanceof Date) {
     date = dob;
   } else if (typeof dob === 'number') {
-    // Excel serial date (days since 1900-01-01, with leap year bug)
     date = new Date((dob - 25569) * 86400 * 1000);
   } else if (typeof dob === 'string') {
     const parts = dob.split(/[\/\-\.]/);
     if (parts.length === 3) {
-      // DD/MM/YYYY or YYYY-MM-DD
       if (parts[0].length === 4) {
         date = new Date(`${parts[0]}-${parts[1]}-${parts[2]}`);
       } else {
@@ -306,6 +386,10 @@ function calculateAgeFromDob(dob) {
 
 function handleImportExcel(file) {
   if (!file) return;
+  if (typeof XLSX === 'undefined') {
+    alert('La librairie Excel n\'est pas disponible (connexion internet requise pour le premier chargement). Reconnecte-toi une fois pour mettre en cache cette fonctionnalité.');
+    return;
+  }
   const reader = new FileReader();
   reader.onload = (e) => {
     try {
@@ -327,12 +411,9 @@ function handleImportExcel(file) {
         const prenom = String(get(['prenom']) || '').trim();
         const centre = String(get(['centre']) || '').trim();
 
-        // Age : priorité à la colonne age, sinon calcul depuis date de naissance
         let age = '';
         const ageRaw = get(['age', 'ageauto']);
-        if (ageRaw !== '') {
-          age = Number(ageRaw) || '';
-        }
+        if (ageRaw !== '') age = Number(ageRaw) || '';
         if (!age) {
           const dobRaw = get(['datenaissance', 'ddn', 'naissance', 'datedenaissance']);
           if (dobRaw !== '') age = calculateAgeFromDob(dobRaw);
@@ -370,14 +451,15 @@ function findBareme(fonction, age) {
   return selected.ranges.find((range) => age >= range.min && age <= range.max) || null;
 }
 
-function calculateScore(range, distances) {
+function calculateScore(range, distances, basePoints) {
+  const base = typeof basePoints === 'number' ? basePoints : BASE_POINTS_MAX;
   if (ppaMode) {
     const distancePoints = Number(distances.toFixed(2));
-    const totalPoints = Number((BASE_POINTS + distancePoints).toFixed(2));
+    const totalPoints = Number((base + distancePoints).toFixed(2));
     return { distancePoints, totalPoints };
   }
   const distancePoints = range ? Number((distances * range.multiplier).toFixed(2)) : 0;
-  const totalPoints = Number((BASE_POINTS + distancePoints).toFixed(2));
+  const totalPoints = Number((base + distancePoints).toFixed(2));
   return { distancePoints, totalPoints };
 }
 
@@ -386,11 +468,11 @@ function calculatePreview() {
   const fonction = fields.fonction.value;
   const distances = Number(fields.distances.value || 0);
   const range = ppaMode ? null : findBareme(fonction, age);
-  const { distancePoints, totalPoints } = calculateScore(range, distances);
+  const { distancePoints, totalPoints } = calculateScore(range, distances, BASE_POINTS_MAX);
 
   ageRangeEl.textContent = ppaMode ? 'PPA' : (range ? range.label : '—');
   multiplierEl.textContent = ppaMode ? '× 1' : (range ? formatNumber(range.multiplier) : '—');
-  basePointsEl.textContent = formatNumber(BASE_POINTS);
+  basePointsEl.textContent = formatNumber(BASE_POINTS_MAX);
   distancePointsEl.textContent = formatNumber(distancePoints);
   pointsEl.textContent = formatNumber(totalPoints);
   updateTerrainCandidateSummary();
@@ -407,9 +489,7 @@ function openBaremesModal() {
 function closeBaremesModal() {
   if (!baremesModal) return;
   baremesModal.classList.remove('is-visible');
-  setTimeout(() => {
-    baremesModal.hidden = true;
-  }, 180);
+  setTimeout(() => { baremesModal.hidden = true; }, 180);
 }
 
 function renderBaremesTable() {
@@ -449,9 +529,24 @@ function renderRanking() {
   getRankedRecords().slice(0, 5).forEach((record, index) => {
     const pill = document.createElement('div');
     pill.className = 'ranking-pill';
-    pill.textContent = `#${index + 1} ${record.prenom} ${record.nom} — ${formatNumber(record.totalPoints)} pts`;
+    let label = `#${index + 1} ${record.prenom} ${record.nom} — ${formatNumber(record.totalPoints)} pts`;
+    if (record.blessure) label += ' 🩹';
     rankingList.appendChild(pill);
+    pill.textContent = label;
   });
+}
+
+function buildEtapesCell(record) {
+  if (!record.etapesValidees || record.etapesValidees.length === 0) {
+    return record.distances > 0
+      ? '<span class="etapes-all">✓ Toutes</span>'
+      : '<span class="etapes-none">—</span>';
+  }
+  const nums = record.etapesValidees.map((e) => {
+    const idx = ETAPES.findIndex((et) => et.id === e.id);
+    return idx >= 0 ? idx + 1 : '?';
+  });
+  return `<span class="etapes-partial">Ét. ${nums.join(', ')}</span>`;
 }
 
 function renderRecords() {
@@ -460,7 +555,7 @@ function renderRecords() {
   if (records.length === 0) {
     const row = document.createElement('tr');
     row.className = 'empty-row';
-    row.innerHTML = '<td colspan="18">Aucune évaluation enregistrée pour le moment.</td>';
+    row.innerHTML = '<td colspan="19">Aucune évaluation enregistrée pour le moment.</td>';
     recordsBody.appendChild(row);
     statsLine.textContent = '0 fiche';
     renderRanking();
@@ -471,14 +566,20 @@ function renderRecords() {
 
   ranked.forEach((record, index) => {
     const row = document.createElement('tr');
+    if (record.blessure) row.classList.add('row-blessure');
+    else if (record.etapesValidees && record.etapesValidees.length < 5 && record.distances === 0) row.classList.add('row-partiel');
+
+    const blessureIcon = record.blessure ? ' <span class="blessure-icon" title="Arrêt blessure">🩹</span>' : '';
+
     row.innerHTML = `
       <td><strong>${index + 1}</strong></td>
-      <td>${escapeHtml(record.nom)}</td>
+      <td>${escapeHtml(record.nom)}${blessureIcon}</td>
       <td>${escapeHtml(record.prenom)}</td>
       <td>${escapeHtml(record.centre)}</td>
       <td>${record.age}</td>
       <td>${escapeHtml(record.sexeLabel || '')}</td>
       <td>${escapeHtml(record.fonctionLabel)}</td>
+      <td>${buildEtapesCell(record)}</td>
       <td>${record.distances}</td>
       <td>${escapeHtml(record.chrono || '')}</td>
       <td>${record.ageRange}</td>
@@ -489,7 +590,10 @@ function renderRecords() {
       <td>${escapeHtml(record.fc1 || '')}</td>
       <td>${escapeHtml(record.fc2 || '')}</td>
       <td>${escapeHtml(record.observation || '')}</td>
-      <td><button class="small-btn" data-delete="${record.id}">Supprimer</button></td>
+      <td class="actions-cell">
+        <button class="small-btn qr-btn" data-qr-id="${record.id}" title="Générer QR pour tablette 2">QR</button>
+        <button class="small-btn" data-delete="${record.id}">Supprimer</button>
+      </td>
     `;
     recordsBody.appendChild(row);
   });
@@ -537,15 +641,41 @@ function generateRecordId() {
 }
 
 function persistRecord(record) {
-  records = [record, ...records];
-  saveRecords();
-  // Mark matching candidate as done
-  const cand = getCandidateByName(record.nom, record.prenom);
-  if (cand && cand.status === 'pending') {
-    cand.status = 'done';
-    saveCandidates();
-    renderCandidates();
+  if (_editingRecordId) {
+    // Mode édition — remplacer le record existant
+    const idx = records.findIndex((r) => r.id === _editingRecordId);
+    if (idx !== -1) {
+      record.id = _editingRecordId; // conserver le même id
+      record.createdAt = records[idx].createdAt; // conserver la date originale
+      records[idx] = record;
+    } else {
+      records = [record, ...records];
+    }
+    _editingRecordId = null;
+  } else {
+    records = [record, ...records];
   }
+  saveRecords();
+
+  // Sync candidat dans la liste
+  const nomLower = record.nom.toLowerCase();
+  const prenomLower = record.prenom.toLowerCase();
+  let cand = candidates.find(
+    (c) => c.nom.toLowerCase() === nomLower && c.prenom.toLowerCase() === prenomLower
+  );
+  if (cand) {
+    cand.status = 'done';
+  } else {
+    candidates.push({
+      id: generateCandidateId(),
+      nom: record.nom, prenom: record.prenom,
+      centre: record.centre || '', age: record.age || '',
+      sexe: record.sexe || '', fonction: record.fonction || '',
+      status: 'done', createdAt: new Date().toISOString(), autoAdded: true,
+    });
+  }
+  saveCandidates();
+  renderCandidates();
   renderRecords();
 }
 
@@ -611,20 +741,36 @@ function resetForm() {
   setPpaMode(false);
   calculatePreview();
   setChronoPreset('F');
+  _editingRecordId = null;
+  const formTitle = document.querySelector('#setupView .form-card .section-head h2');
+  if (formTitle) formTitle.textContent = 'Nouvelle évaluation';
+  const submitBtn = document.getElementById('addWithoutFullscreenBtn');
+  if (submitBtn) submitBtn.textContent = 'Ajouter l\'évaluation';
   fields.nom.focus();
 }
 
 function buildCsvContent() {
   const ranked = getRankedRecords();
   const header = [
-    'Rang', 'Nom', 'Prénom', 'Centre', 'Âge', 'Sexe', 'Fonction', 'Distances (18m)', 'Chrono', 'Tranche',
-    'Barème', 'Points initiaux', 'Points distances', 'Total', 'FC1', 'FC2', 'Observation'
+    'Rang', 'Nom', 'Prénom', 'Centre', 'Âge', 'Sexe', 'Fonction',
+    'Étapes validées', 'Distances (18m)', 'Chrono', 'Tranche',
+    'Barème', 'Points initiaux', 'Points distances', 'Total',
+    'Blessure', 'FC1', 'FC2', 'Observation'
   ];
 
-  const rows = ranked.map((r, index) => [
-    index + 1, r.nom, r.prenom, r.centre, r.age, r.sexeLabel || '', r.fonctionLabel, r.distances, r.chrono || '', r.ageRange,
-    r.multiplier, r.basePoints, r.distancePoints, r.totalPoints, r.fc1 || '', r.fc2 || '', r.observation || ''
-  ]);
+  const rows = ranked.map((r, index) => {
+    const etapesStr = r.distances > 0
+      ? 'Toutes (5/5)'
+      : r.etapesValidees
+        ? r.etapesValidees.map((e) => e.label).join(' | ')
+        : '—';
+    return [
+      index + 1, r.nom, r.prenom, r.centre, r.age, r.sexeLabel || '', r.fonctionLabel,
+      etapesStr, r.distances, r.chrono || '', r.ageRange,
+      r.multiplier, r.basePoints, r.distancePoints, r.totalPoints,
+      r.blessure ? 'Oui' : 'Non', r.fc1 || '', r.fc2 || '', r.observation || ''
+    ];
+  });
 
   return [header, ...rows]
     .map((line) => line.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(';'))
@@ -636,7 +782,6 @@ function exportCsv() {
     alert('Aucune donnée à exporter.');
     return;
   }
-
   const csv = buildCsvContent();
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
@@ -648,8 +793,16 @@ function exportCsv() {
 
 function buildPrintHtml() {
   const ranked = getRankedRecords();
-  const rows = ranked.map((record, index) => `
-    <tr>
+  const rows = ranked.map((record, index) => {
+    const etapesStr = record.distances > 0
+      ? 'Toutes (5/5)'
+      : record.etapesValidees
+        ? record.etapesValidees.map((e) => e.label).join(', ') || '—'
+        : '—';
+    const blessureStr = record.blessure ? '🩹 Oui' : '—';
+    const rowStyle = record.blessure ? 'background:#fff3f3;' : (record.etapesValidees && record.etapesValidees.length < 5 && record.distances === 0 ? 'background:#fff8ec;' : '');
+    return `
+    <tr style="${rowStyle}">
       <td>${index + 1}</td>
       <td>${escapeHtml(record.nom)}</td>
       <td>${escapeHtml(record.prenom)}</td>
@@ -657,6 +810,7 @@ function buildPrintHtml() {
       <td>${record.age}</td>
       <td>${escapeHtml(record.sexeLabel || '')}</td>
       <td>${escapeHtml(record.fonctionLabel)}</td>
+      <td>${escapeHtml(etapesStr)}</td>
       <td>${record.distances}</td>
       <td>${escapeHtml(record.chrono || '')}</td>
       <td>${escapeHtml(record.ageRange)}</td>
@@ -664,11 +818,13 @@ function buildPrintHtml() {
       <td>${formatNumber(record.basePoints)}</td>
       <td>${formatNumber(record.distancePoints)}</td>
       <td>${formatNumber(record.totalPoints)}</td>
+      <td>${blessureStr}</td>
       <td>${escapeHtml(record.fc1 || '')}</td>
       <td>${escapeHtml(record.fc2 || '')}</td>
       <td>${escapeHtml(record.observation || '')}</td>
     </tr>
-  `).join('');
+  `;
+  }).join('');
 
   return `<!doctype html>
   <html lang="fr">
@@ -679,8 +835,8 @@ function buildPrintHtml() {
       body { font-family: Arial, sans-serif; margin: 24px; color: #111827; }
       h1 { margin: 0 0 8px; }
       p { margin: 0 0 16px; color: #4b5563; }
-      table { width: 100%; border-collapse: collapse; font-size: 10px; }
-      th, td { border: 1px solid #cbd5e1; padding: 6px; text-align: left; vertical-align: top; }
+      table { width: 100%; border-collapse: collapse; font-size: 9px; }
+      th, td { border: 1px solid #cbd5e1; padding: 5px; text-align: left; vertical-align: top; }
       th { background: #eff6ff; }
     </style>
   </head>
@@ -690,7 +846,10 @@ function buildPrintHtml() {
     <table>
       <thead>
         <tr>
-          <th>Rang</th><th>Nom</th><th>Prénom</th><th>Centre</th><th>Âge</th><th>Sexe</th><th>Fonction</th><th>Distances</th><th>Chrono</th><th>Tranche</th><th>Barème</th><th>Base</th><th>Pts distances</th><th>Total</th><th>FC1</th><th>FC2</th><th>Observation</th>
+          <th>Rang</th><th>Nom</th><th>Prénom</th><th>Centre</th><th>Âge</th><th>Sexe</th><th>Fonction</th>
+          <th>Étapes</th><th>Distances</th><th>Chrono</th><th>Tranche</th><th>Barème</th>
+          <th>Base</th><th>Pts dist.</th><th>Total</th><th>Blessure</th>
+          <th>FC1</th><th>FC2</th><th>Observation</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
@@ -706,7 +865,7 @@ function exportPdfView() {
   }
   const printWindow = window.open('', '_blank');
   if (!printWindow) {
-    alert('Impossible d’ouvrir la fenêtre PDF. Vérifie le bloqueur de pop-up.');
+    alert('Impossible d\'ouvrir la fenêtre PDF. Vérifie le bloqueur de pop-up.');
     return;
   }
   printWindow.document.open();
@@ -760,19 +919,71 @@ function playBeep() {
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     if (!AudioContextClass) return;
     const context = new AudioContextClass();
-    const oscillator = context.createOscillator();
-    const gain = context.createGain();
-    oscillator.type = 'sine';
-    oscillator.frequency.value = 880;
-    gain.gain.value = 0.12;
-    oscillator.connect(gain);
-    gain.connect(context.destination);
-    oscillator.start();
-    oscillator.stop(context.currentTime + 0.45);
-    oscillator.onended = () => context.close();
+
+    // 3 bips courts et forts
+    [0, 0.25, 0.5].forEach((offset) => {
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.type = 'square';
+      oscillator.frequency.value = 880;
+      gain.gain.setValueAtTime(0, context.currentTime + offset);
+      gain.gain.linearRampToValueAtTime(1.0, context.currentTime + offset + 0.01);
+      gain.gain.linearRampToValueAtTime(0, context.currentTime + offset + 0.18);
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+      oscillator.start(context.currentTime + offset);
+      oscillator.stop(context.currentTime + offset + 0.2);
+    });
+
+    // 1 bip long final
+    const osc2 = context.createOscillator();
+    const gain2 = context.createGain();
+    osc2.type = 'square';
+    osc2.frequency.value = 660;
+    gain2.gain.setValueAtTime(0, context.currentTime + 0.75);
+    gain2.gain.linearRampToValueAtTime(1.0, context.currentTime + 0.76);
+    gain2.gain.linearRampToValueAtTime(0, context.currentTime + 1.4);
+    osc2.connect(gain2);
+    gain2.connect(context.destination);
+    osc2.start(context.currentTime + 0.75);
+    osc2.stop(context.currentTime + 1.5);
+    osc2.onended = () => context.close();
+
   } catch (error) {
     console.error('Bip impossible', error);
   }
+}
+
+function triggerEndAlert() {
+  // Clignotement rouge intense sur tout l'écran
+  const flash = document.createElement('div');
+  flash.id = 'endFlash';
+  flash.style.cssText = `
+    position: fixed; inset: 0; z-index: 9999;
+    background: #ef4444;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 24px;
+    pointer-events: none;
+  `;
+  flash.innerHTML = `
+    <div style="font-size: clamp(5rem, 18vw, 12rem); font-weight: 900; color: #fff; letter-spacing: -0.03em; font-family: ui-monospace, monospace;">STOP</div>
+    <div style="font-size: clamp(1.4rem, 4vw, 2.8rem); font-weight: 800; color: rgba(255,255,255,0.9);">Temps écoulé — Arrêt de l'épreuve</div>
+  `;
+  document.body.appendChild(flash);
+
+  // Clignotement 4 fois puis disparaît
+  let count = 0;
+  const blink = setInterval(() => {
+    flash.style.opacity = flash.style.opacity === '0' ? '1' : '0';
+    count++;
+    if (count >= 8) {
+      clearInterval(blink);
+      flash.style.transition = 'opacity 0.6s ease';
+      flash.style.opacity = '0';
+      setTimeout(() => flash.remove(), 700);
+    }
+  }, 250);
 }
 
 function updateAllChronoDisplays(text, isDanger) {
@@ -830,12 +1041,13 @@ function updateChronoDisplay() {
     if (!beepPlayed) {
       beepPlayed = true;
       playBeep();
+      triggerEndAlert();
     }
   }
 }
 
 function startChrono() {
-  if (chronoInterval) return;
+  if (chronoInterval || chronoStopped) return;
   chronoStart = Date.now();
   beepPlayed = false;
   chronoInterval = setInterval(updateChronoDisplay, 100);
@@ -850,11 +1062,30 @@ function pauseChrono() {
   updateChronoDisplay();
 }
 
+let chronoStopped = false;
+
+function stopChrono() {
+  if (chronoInterval) {
+    chronoElapsed += Date.now() - chronoStart;
+    clearInterval(chronoInterval);
+    chronoInterval = null;
+  }
+  chronoStopped = true;
+  updateChronoDisplay();
+  stopButtons.forEach((btn) => btn.classList.add('is-stopped'));
+  startButtons.forEach((btn) => { btn.disabled = true; btn.style.opacity = '0.4'; });
+  pauseButtons.forEach((btn) => { btn.disabled = true; btn.style.opacity = '0.4'; });
+}
+
 function resetChrono() {
   clearInterval(chronoInterval);
   chronoInterval = null;
   chronoElapsed = 0;
   chronoStart = 0;
+  chronoStopped = false;
+  stopButtons.forEach((btn) => btn.classList.remove('is-stopped'));
+  startButtons.forEach((btn) => { btn.disabled = false; btn.style.opacity = ''; });
+  pauseButtons.forEach((btn) => { btn.disabled = false; btn.style.opacity = ''; });
   updateChronoDisplay();
 }
 
@@ -864,13 +1095,15 @@ function validateSetupBeforeTerrain() {
     return false;
   }
   if (!fields.age.value || !fields.fonction.value || !fields.sexe.value) {
-    alert('Choisis l’âge, la fonction et le sexe avant de passer en mode jury.');
+    alert('Choisis l\'âge, la fonction et le sexe avant de passer en mode jury.');
     return false;
   }
-  const age = Number(fields.age.value);
-  if (!findBareme(fields.fonction.value, age)) {
-    alert('Âge ou fonction hors barème. Vérifie la saisie.');
-    return false;
+  if (!ppaMode) {
+    const age = Number(fields.age.value);
+    if (!findBareme(fields.fonction.value, age)) {
+      alert('Âge ou fonction hors barème. Vérifie la saisie.');
+      return false;
+    }
   }
   return true;
 }
@@ -902,7 +1135,7 @@ async function exitTerrainMode(targetView = 'records') {
   switchMainView(targetView);
 }
 
-function buildRecordFromForm() {
+function buildRecordFromForm(partialData = null) {
   const age = Number(fields.age.value);
   const sexe = fields.sexe.value;
   const fonction = fields.fonction.value;
@@ -914,7 +1147,30 @@ function buildRecordFromForm() {
     return null;
   }
 
-  const { distancePoints, totalPoints } = calculateScore(range, distances);
+  // BASE_POINTS = nombre d'étapes validées (max 5)
+  // Si distances > 0 : toutes les étapes sont supposées validées → 5 pts
+  // Si résultat partiel : on compte les étapes cochées
+  let basePoints = BASE_POINTS_MAX;
+  let etapesValidees = null;
+  let blessure = false;
+  let partialComment = '';
+
+  if (partialData) {
+    etapesValidees = partialData.etapesValidees;
+    blessure = partialData.blessure;
+    partialComment = partialData.comment;
+    basePoints = etapesValidees.length; // 0 à 5 selon étapes cochées
+  }
+
+  const { distancePoints, totalPoints } = calculateScore(range, distances, basePoints);
+
+  // Fusionner commentaire partiel avec observation existante
+  const baseObs = normalizeText(fields.observation.value);
+  const fullObs = [
+    blessure ? '⚠️ Arrêt blessure' : '',
+    partialComment,
+    baseObs,
+  ].filter(Boolean).join(' — ');
 
   return {
     id: generateRecordId(),
@@ -929,45 +1185,212 @@ function buildRecordFromForm() {
     distances,
     multiplier: ppaMode ? 1 : (range ? range.multiplier : 0),
     ageRange: ppaMode ? 'PPA' : (range ? range.label : '—'),
-    basePoints: BASE_POINTS,
+    basePoints,
     distancePoints,
     totalPoints,
     ppa: ppaMode,
+    etapesValidees,
+    blessure,
     fc1: normalizeText(fields.fc1.value),
     fc2: normalizeText(fields.fc2.value),
-    observation: normalizeText(fields.observation.value),
+    observation: fullObs,
     chrono: chronoDisplays[0].textContent,
     createdAt: new Date().toISOString(),
   };
 }
 
-async function saveCurrentEvaluation() {
-  const record = buildRecordFromForm();
-  if (!record) return;
+// ─── Popup FC (choix → saisie) ───────────────────────────────────────────────
 
-  try {
-    persistRecord(record);
-    resetForm();
-    await exitTerrainMode('records');
-  } catch (error) {
-    console.error('Enregistrement impossible', error);
-    alert('Impossible d’enregistrer le résultat sur cette tablette.');
+let _fcCallback = null;
+let _fcChronoInterval = null;
+let _fcChronoElapsed = 0;
+let _fcChronoStart = 0;
+const FC_POPUP_DURATION = 60000;
+
+function openFcPopup(onConfirm) {
+  const modal = document.getElementById('fcPopupModal');
+  if (!modal) { onConfirm({ fc1: '', fc2: '' }); return; }
+  _fcCallback = onConfirm;
+
+  // Afficher l'écran de choix, masquer le formulaire
+  document.getElementById('fcPopupChoice').hidden = false;
+  document.getElementById('fcPopupForm').hidden = true;
+
+  document.getElementById('fcPopupInput1').value = '';
+  document.getElementById('fcPopupInput2').value = '';
+  document.getElementById('fcPopupDelta').textContent = '—';
+  document.getElementById('fcPopupInterp').textContent = '';
+  resetFcPopupChrono();
+  modal.hidden = false;
+  requestAnimationFrame(() => modal.classList.add('is-visible'));
+}
+
+function closeFcPopup() {
+  const modal = document.getElementById('fcPopupModal');
+  if (!modal) return;
+  modal.classList.remove('is-visible');
+  setTimeout(() => { modal.hidden = true; }, 180);
+  stopFcPopupChrono();
+  _fcCallback = null;
+}
+
+function updateFcPopupDelta() {
+  const fc1 = parseInt(document.getElementById('fcPopupInput1').value) || 0;
+  const fc2 = parseInt(document.getElementById('fcPopupInput2').value) || 0;
+  const deltaEl = document.getElementById('fcPopupDelta');
+  const interpEl = document.getElementById('fcPopupInterp');
+  if (!fc1 || !fc2) { deltaEl.textContent = '—'; interpEl.textContent = ''; return; }
+  const delta = fc2 - fc1;
+  deltaEl.textContent = (delta >= 0 ? '+' : '') + delta;
+  if (delta <= -20) { interpEl.textContent = '✅ Bonne récupération'; interpEl.className = 'fc-interp fc-good'; }
+  else if (delta <= 0) { interpEl.textContent = '🟡 Récupération correcte'; interpEl.className = 'fc-interp fc-medium'; }
+  else { interpEl.textContent = '🔴 Récupération insuffisante'; interpEl.className = 'fc-interp fc-bad'; }
+}
+
+function updateFcPopupChronoDisplay() {
+  const elapsed = _fcChronoElapsed + (_fcChronoInterval ? Date.now() - _fcChronoStart : 0);
+  const remaining = Math.max(0, FC_POPUP_DURATION - elapsed);
+  const secs = Math.ceil(remaining / 1000);
+  const el = document.getElementById('fcPopupChronoDisplay');
+  if (el) { el.textContent = `${secs}s`; el.classList.toggle('fc-chrono-done', remaining === 0); }
+  if (remaining === 0 && _fcChronoInterval) {
+    clearInterval(_fcChronoInterval); _fcChronoInterval = null;
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator(); const g = ctx.createGain();
+      osc.frequency.value = 880; g.gain.value = 0.12;
+      osc.connect(g); g.connect(ctx.destination);
+      osc.start(); osc.stop(ctx.currentTime + 0.45);
+      osc.onended = () => ctx.close();
+    } catch (_) {}
+    const btn = document.getElementById('fcPopupStartChronoBtn');
+    if (btn) { btn.disabled = false; btn.textContent = 'Relancer'; }
   }
 }
 
+function startFcPopupChrono() {
+  if (_fcChronoInterval) return;
+  _fcChronoStart = Date.now();
+  _fcChronoElapsed = 0;
+  _fcChronoInterval = setInterval(updateFcPopupChronoDisplay, 200);
+  const btn = document.getElementById('fcPopupStartChronoBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'En cours…'; }
+  updateFcPopupChronoDisplay();
+}
+
+function stopFcPopupChrono() {
+  if (_fcChronoInterval) { clearInterval(_fcChronoInterval); _fcChronoInterval = null; }
+}
+
+function resetFcPopupChrono() {
+  stopFcPopupChrono();
+  _fcChronoElapsed = 0;
+  const el = document.getElementById('fcPopupChronoDisplay');
+  if (el) { el.textContent = '60s'; el.classList.remove('fc-chrono-done'); }
+  const btn = document.getElementById('fcPopupStartChronoBtn');
+  if (btn) { btn.disabled = false; btn.textContent = 'Lancer 1 min'; }
+}
+
+document.getElementById('fcPopupStartChronoBtn')?.addEventListener('click', startFcPopupChrono);
+document.getElementById('fcPopupResetChronoBtn')?.addEventListener('click', resetFcPopupChrono);
+document.getElementById('fcPopupInput1')?.addEventListener('input', updateFcPopupDelta);
+document.getElementById('fcPopupInput2')?.addEventListener('input', updateFcPopupDelta);
+
+// Choix : saisir ici (tablette 1)
+document.getElementById('fcChoiceT1Btn')?.addEventListener('click', () => {
+  document.getElementById('fcPopupChoice').hidden = true;
+  document.getElementById('fcPopupForm').hidden = false;
+  document.getElementById('fcPopupInput1').focus();
+});
+
+// Choix : tablette 2 via QR — on ferme le popup FC, on laisse afterSave ouvrir le QR
+document.getElementById('fcChoiceT2Btn')?.addEventListener('click', () => {
+  const cb = _fcCallback;
+  closeFcPopup();
+  if (cb) cb({ fc1: '', fc2: '', useQr: true });
+});
+
+// Choix : passer
+document.getElementById('fcChoiceSkipBtn')?.addEventListener('click', () => {
+  const cb = _fcCallback;
+  closeFcPopup();
+  if (cb) cb({ fc1: '', fc2: '' });
+});
+
+document.getElementById('fcPopupSkipBtn')?.addEventListener('click', () => {
+  const cb = _fcCallback;
+  closeFcPopup();
+  if (cb) cb({ fc1: '', fc2: '' });
+});
+document.getElementById('fcPopupConfirmBtn')?.addEventListener('click', () => {
+  const fc1 = document.getElementById('fcPopupInput1').value.trim();
+  const fc2 = document.getElementById('fcPopupInput2').value.trim();
+  const cb = _fcCallback;
+  closeFcPopup();
+  if (cb) cb({ fc1, fc2 });
+});
+document.getElementById('fcPopupModal')?.addEventListener('click', (e) => {
+  if (e.target === document.getElementById('fcPopupModal')) {
+    const cb = _fcCallback;
+    closeFcPopup();
+    if (cb) cb({ fc1: '', fc2: '' });
+  }
+});
+
+// ─── attemptSave refondu ──────────────────────────────────────────────────────
+
+function attemptSave(afterSave) {
+  const distances = Number(fields.distances.value || 0);
+
+  function doFcThenSave(partialData) {
+    openFcPopup(({ fc1, fc2, useQr }) => {
+      const record = buildRecordFromForm(partialData);
+      if (!record) return;
+      record.fc1 = fc1 || normalizeText(fields.fc1.value);
+      record.fc2 = fc2 || normalizeText(fields.fc2.value);
+      if (record.fc1 && record.fc2) {
+        record.fcDelta = parseInt(record.fc2) - parseInt(record.fc1);
+      }
+      try {
+        persistRecord(record);
+        resetForm();
+        afterSave(record, useQr);
+      } catch (err) {
+        console.error('Enregistrement impossible', err);
+        alert('Impossible d\'enregistrer le résultat sur cette tablette.');
+      }
+    });
+  }
+
+  if (distances === 0) {
+    // Étape 1 : popup étapes/blessure
+    openPartialResultModal((partialData) => {
+      // Étape 2 : popup FC
+      doFcThenSave(partialData);
+    });
+  } else {
+    // Directement le popup FC (étapes toutes validées)
+    doFcThenSave(null);
+  }
+}
+
+async function saveCurrentEvaluation() {
+  attemptSave(async (record, useQr) => {
+    renderRecords();
+    await exitTerrainMode('records');
+    if (record && useQr) openQrModal(record);
+  });
+}
+
+// ─── Event listeners ──────────────────────────────────────────────────────────
+
 form.addEventListener('submit', (event) => {
   event.preventDefault();
-  const record = buildRecordFromForm();
-  if (!record) return;
-
-  try {
-    persistRecord(record);
+  attemptSave((record, useQr) => {
+    renderRecords();
     switchMainView('records');
-    resetForm();
-  } catch (error) {
-    console.error('Enregistrement impossible', error);
-    alert('Impossible d’enregistrer le résultat sur cette tablette.');
-  }
+    if (record && useQr) openQrModal(record);
+  });
 });
 
 recordsBody.addEventListener('click', (event) => {
@@ -984,6 +1407,7 @@ exitTerrainBtn.addEventListener('click', () => exitTerrainMode('records'));
 saveTerrainBtn.addEventListener('click', saveCurrentEvaluation);
 if (saveTerrainTopBtn) saveTerrainTopBtn.addEventListener('click', saveCurrentEvaluation);
 newEvaluationBtn.addEventListener('click', () => switchMainView('setup'));
+document.getElementById('backToFormBtn')?.addEventListener('click', () => switchMainView('setup'));
 document.getElementById('viewResultsBtn')?.addEventListener('click', () => switchMainView('records'));
 exportCsvBtn.addEventListener('click', exportCsv);
 exportPdfBtn.addEventListener('click', exportPdfView);
@@ -999,24 +1423,37 @@ if (baremesModal) {
 
 // PPA
 document.getElementById('ppaToggleBtn')?.addEventListener('click', () => {
-  if (ppaMode) {
-    setPpaMode(false); // toggle off directly
-  } else {
-    openPpaModal();
-  }
+  if (ppaMode) { setPpaMode(false); } else { openPpaModal(); }
 });
-document.getElementById('ppaConfirmBtn')?.addEventListener('click', () => {
-  closePpaModal();
-  setPpaMode(true);
-});
+document.getElementById('ppaConfirmBtn')?.addEventListener('click', () => { closePpaModal(); setPpaMode(true); });
 document.getElementById('ppaCancelBtn')?.addEventListener('click', closePpaModal);
 document.getElementById('ppaModal')?.addEventListener('click', (e) => {
   if (e.target === document.getElementById('ppaModal')) closePpaModal();
 });
+
+// Résultat partiel
+document.getElementById('partialResultConfirmBtn')?.addEventListener('click', () => {
+  const partialData = collectPartialResult();
+  const cb = _partialResultCallback; // sauvegarder AVANT closePartialResultModal
+  closePartialResultModal();
+  if (cb) cb(partialData);
+});
+document.getElementById('partialResultCancelBtn')?.addEventListener('click', () => {
+  _partialResultCallback = null;
+  closePartialResultModal();
+});
+document.getElementById('partialResultModal')?.addEventListener('click', (e) => {
+  if (e.target === document.getElementById('partialResultModal')) {
+    _partialResultCallback = null;
+    closePartialResultModal();
+  }
+});
+
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') {
     if (baremesModal && !baremesModal.hidden) closeBaremesModal();
     if (document.getElementById('ppaModal') && !document.getElementById('ppaModal').hidden) closePpaModal();
+    if (document.getElementById('partialResultModal') && !document.getElementById('partialResultModal').hidden) closePartialResultModal();
   }
 });
 
@@ -1031,6 +1468,7 @@ clearAllBtn.addEventListener('click', () => {
 
 startButtons.forEach((button) => button.addEventListener('click', startChrono));
 pauseButtons.forEach((button) => button.addEventListener('click', pauseChrono));
+stopButtons.forEach((button) => button.addEventListener('click', stopChrono));
 resetButtons.forEach((button) => button.addEventListener('click', resetChrono));
 presetFemmeButtons.forEach((button) => button.addEventListener('click', () => setChronoPreset('F')));
 presetHommeButtons.forEach((button) => button.addEventListener('click', () => setChronoPreset('H')));
@@ -1041,7 +1479,6 @@ resetDistanceButtons.forEach((button) => button.addEventListener('click', () => 
 counterDisplays.forEach((display) => {
   display.addEventListener('click', () => setDistanceCounter(distanceCounter + 1));
 });
-
 
 fields.distances.addEventListener('input', () => setDistanceCounter(fields.distances.value));
 fields.sexe.addEventListener('change', () => {
@@ -1070,6 +1507,11 @@ renderBaremesTable();
 renderRecords();
 renderCandidates();
 switchMainView(records.length ? 'records' : 'setup');
+// Forcer état propre du chrono au chargement
+chronoStopped = false;
+startButtons.forEach((btn) => { btn.disabled = false; btn.style.opacity = ''; });
+pauseButtons.forEach((btn) => { btn.disabled = false; btn.style.opacity = ''; });
+stopButtons.forEach((btn) => btn.classList.remove('is-stopped'));
 resetForm();
 
 // ─── Candidates UI wiring ────────────────────────────────────────────────────
@@ -1114,7 +1556,6 @@ document.getElementById('clearCandidatesBtn')?.addEventListener('click', () => {
   renderCandidates();
 });
 
-// Delegate: select or delete candidate cards
 document.getElementById('candidatesPendingList')?.addEventListener('click', handleCandidateListClick);
 document.getElementById('candidatesDoneList')?.addEventListener('click', handleCandidateListClick);
 
@@ -1129,3 +1570,347 @@ function handleCandidateListClick(e) {
     renderCandidates();
   }
 }
+
+// ─── QR Code — Tablette 1 : génération ──────────────────────────────────────
+
+function buildQrPayload(record) {
+  // Payload compact JSON transmis dans le QR
+  return JSON.stringify({
+    v: 1,                          // version du format
+    id: record.id,
+    nom: record.nom,
+    prenom: record.prenom,
+    centre: record.centre,
+    age: record.age,
+    sexe: record.sexe,
+    fonction: record.fonction,
+    distances: record.distances,
+    chrono: record.chrono || '',
+    totalPoints: record.totalPoints,
+    blessure: record.blessure || false,
+    etapes: record.etapesValidees ? record.etapesValidees.length : 5,
+  });
+}
+
+let _currentQrRecord = null;
+
+function openQrModal(record) {
+  _currentQrRecord = record;
+  const modal = document.getElementById('qrModal');
+  const nameEl = document.getElementById('qrCandidatName');
+  const pointsEl = document.getElementById('qrCandidatPoints');
+  if (!modal) return;
+
+  nameEl.textContent = `${record.prenom} ${record.nom}`;
+  pointsEl.textContent = `${formatNumber(record.totalPoints)} pts · ${record.distances} navette(s)`;
+
+  // Vider le conteneur
+  const wrapper = document.getElementById('qrCanvasWrapper');
+  wrapper.innerHTML = '';
+
+  try {
+    // qrcode-generator expose la variable globale 'qrcode'
+    const qr = qrcode(0, 'M');
+    qr.addData(buildQrPayload(record));
+    qr.make();
+
+    const count = qr.getModuleCount();
+    const size = 280;
+    const cell = size / count;
+    let rects = '';
+    for (let r = 0; r < count; r++) {
+      for (let c = 0; c < count; c++) {
+        if (qr.isDark(r, c)) {
+          rects += `<rect x="${(c * cell).toFixed(2)}" y="${(r * cell).toFixed(2)}" width="${cell.toFixed(2)}" height="${cell.toFixed(2)}"/>`;
+        }
+      }
+    }
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" style="display:block;border-radius:8px;">
+      <rect width="${size}" height="${size}" fill="#ffffff"/>
+      <g fill="#07142d">${rects}</g>
+    </svg>`;
+    wrapper.innerHTML = svg;
+  } catch (e) {
+    console.error('QR génération erreur', e);
+    wrapper.innerHTML = `<div style="width:280px;height:280px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#fff;border-radius:12px;padding:16px;text-align:center;gap:8px;"><div style="font-size:2rem">⚠️</div><div style="font-size:0.85rem;color:#374151;font-weight:700;">QR Code indisponible</div></div>`;
+  }
+
+  modal.hidden = false;
+  requestAnimationFrame(() => modal.classList.add('is-visible'));
+}
+
+function closeQrModal() {
+  const modal = document.getElementById('qrModal');
+  if (!modal) return;
+  modal.classList.remove('is-visible');
+  setTimeout(() => { modal.hidden = true; }, 180);
+}
+
+document.getElementById('closeQrModalBtn')?.addEventListener('click', closeQrModal);
+document.getElementById('qrSkipBtn')?.addEventListener('click', () => {
+  closeQrModal();
+  switchMainView('records');
+});
+document.getElementById('qrOpenFcBtn')?.addEventListener('click', () => {
+  if (!_currentQrRecord) return;
+  closeQrModal();
+  openFcView();
+  populateFcForm(JSON.parse(buildQrPayload(_currentQrRecord)));
+});
+document.getElementById('qrModal')?.addEventListener('click', (e) => {
+  if (e.target === document.getElementById('qrModal')) closeQrModal();
+});
+
+// Ouvre le QR depuis la ligne du tableau
+document.getElementById('recordsBody')?.addEventListener('click', (e) => {
+  const qrBtn = e.target.closest('[data-qr-id]');
+  if (!qrBtn) return;
+  const id = qrBtn.getAttribute('data-qr-id');
+  const record = records.find((r) => r.id === id);
+  if (record) openQrModal(record);
+});
+
+// ─── QR Code — Tablette 2 : scan + saisie FC ────────────────────────────────
+
+let fcChronoInterval = null;
+let fcChronoElapsed = 0;
+let fcChronoStart = 0;
+const FC_DURATION_MS = 60 * 1000; // 1 minute
+let fcRecordInProgress = null;
+
+function openFcView() {
+  document.getElementById('fcView').hidden = false;
+  document.getElementById('setupView').hidden = true;
+  document.getElementById('recordsView').hidden = true;
+  window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
+}
+
+function closeFcView() {
+  stopFcChrono();
+  fcRecordInProgress = null;
+  document.getElementById('fcView').hidden = true;
+  document.getElementById('fcScanResult').hidden = true;
+  document.getElementById('fcScanPlaceholder').hidden = false;
+  document.getElementById('fcForm').reset();
+  resetFcChrono();
+  switchMainView(records.length ? 'records' : 'setup');
+}
+
+function populateFcForm(payload) {
+  fcRecordInProgress = payload;
+  document.getElementById('fcNom').textContent = `${payload.prenom} ${payload.nom}`;
+  document.getElementById('fcCentre').textContent = payload.centre || '—';
+  document.getElementById('fcPoints').textContent = `${formatNumber(payload.totalPoints)} pts · ${payload.distances} navette(s)`;
+  document.getElementById('fcBlessureAlert').hidden = !payload.blessure;
+  document.getElementById('fcScanPlaceholder').hidden = true;
+  document.getElementById('fcScanResult').hidden = false;
+  document.getElementById('fcInput1').value = '';
+  document.getElementById('fcInput2').value = '';
+  document.getElementById('fcDeltaDisplay').textContent = '—';
+  document.getElementById('fcInterpretation').textContent = '';
+  resetFcChrono();
+}
+
+function computeFcDelta() {
+  const fc1 = parseInt(document.getElementById('fcInput1').value) || 0;
+  const fc2 = parseInt(document.getElementById('fcInput2').value) || 0;
+  if (!fc1 || !fc2) {
+    document.getElementById('fcDeltaDisplay').textContent = '—';
+    document.getElementById('fcInterpretation').textContent = '';
+    return;
+  }
+  const delta = fc2 - fc1;
+  const deltaEl = document.getElementById('fcDeltaDisplay');
+  const interpEl = document.getElementById('fcInterpretation');
+  deltaEl.textContent = (delta >= 0 ? '+' : '') + delta;
+  // Interprétation provisoire — à remplacer par la vraie grille
+  if (delta <= -20) {
+    interpEl.textContent = '✅ Bonne récupération';
+    interpEl.className = 'fc-interp fc-good';
+  } else if (delta <= 0) {
+    interpEl.textContent = '🟡 Récupération correcte';
+    interpEl.className = 'fc-interp fc-medium';
+  } else {
+    interpEl.textContent = '🔴 Récupération insuffisante';
+    interpEl.className = 'fc-interp fc-bad';
+  }
+}
+
+// Chrono 1 min FC2
+function updateFcChronoDisplay() {
+  const elapsed = fcChronoElapsed + (fcChronoInterval ? Date.now() - fcChronoStart : 0);
+  const remaining = Math.max(0, FC_DURATION_MS - elapsed);
+  const secs = Math.ceil(remaining / 1000);
+  const el = document.getElementById('fcChronoDisplay');
+  if (el) {
+    el.textContent = `${secs}s`;
+    el.classList.toggle('fc-chrono-done', remaining === 0);
+  }
+  if (remaining === 0 && fcChronoInterval) {
+    clearInterval(fcChronoInterval);
+    fcChronoInterval = null;
+    // Bip
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.frequency.value = 880; g.gain.value = 0.12;
+      osc.connect(g); g.connect(ctx.destination);
+      osc.start(); osc.stop(ctx.currentTime + 0.45);
+      osc.onended = () => ctx.close();
+    } catch (_) {}
+    document.getElementById('fcStartChronoBtn').disabled = false;
+    document.getElementById('fcStartChronoBtn').textContent = 'Relancer';
+  }
+}
+
+function startFcChrono() {
+  if (fcChronoInterval) return;
+  fcChronoStart = Date.now();
+  fcChronoElapsed = 0;
+  fcChronoInterval = setInterval(updateFcChronoDisplay, 200);
+  document.getElementById('fcStartChronoBtn').disabled = true;
+  document.getElementById('fcStartChronoBtn').textContent = 'En cours…';
+  updateFcChronoDisplay();
+}
+
+function stopFcChrono() {
+  if (fcChronoInterval) { clearInterval(fcChronoInterval); fcChronoInterval = null; }
+}
+
+function resetFcChrono() {
+  stopFcChrono();
+  fcChronoElapsed = 0;
+  const el = document.getElementById('fcChronoDisplay');
+  if (el) { el.textContent = '60s'; el.classList.remove('fc-chrono-done'); }
+  const btn = document.getElementById('fcStartChronoBtn');
+  if (btn) { btn.disabled = false; btn.textContent = 'Lancer 1 min'; }
+}
+
+function saveFcRecord() {
+  if (!fcRecordInProgress) return;
+  const fc1 = document.getElementById('fcInput1').value.trim();
+  const fc2 = document.getElementById('fcInput2').value.trim();
+  if (!fc1 || !fc2) { alert('Saisis FC1 et FC2 avant d\'enregistrer.'); return; }
+
+  // Chercher si le record existe déjà (même id)
+  const existing = records.find((r) => r.id === fcRecordInProgress.id);
+  if (existing) {
+    existing.fc1 = fc1;
+    existing.fc2 = fc2;
+    existing.fcDelta = parseInt(fc2) - parseInt(fc1);
+    saveRecords();
+    renderRecords();
+    alert(`FC enregistrées pour ${fcRecordInProgress.prenom} ${fcRecordInProgress.nom}.`);
+    closeFcView();
+    return;
+  }
+
+  // Nouveau record (tablette 2 indépendante)
+  const newRecord = {
+    id: fcRecordInProgress.id,
+    nom: fcRecordInProgress.nom,
+    prenom: fcRecordInProgress.prenom,
+    centre: fcRecordInProgress.centre,
+    age: fcRecordInProgress.age,
+    sexe: fcRecordInProgress.sexe,
+    sexeLabel: fcRecordInProgress.sexe === 'F' ? 'Femme' : 'Homme',
+    fonction: fcRecordInProgress.fonction,
+    fonctionLabel: fcRecordInProgress.fonction ? `${BAREMES[fcRecordInProgress.fonction]?.title || ''} – ${BAREMES[fcRecordInProgress.fonction]?.subtitle || ''}` : '—',
+    distances: fcRecordInProgress.distances,
+    chrono: fcRecordInProgress.chrono || '',
+    ageRange: '—',
+    multiplier: 0,
+    basePoints: fcRecordInProgress.etapes || 5,
+    distancePoints: 0,
+    totalPoints: fcRecordInProgress.totalPoints,
+    fc1, fc2,
+    fcDelta: parseInt(fc2) - parseInt(fc1),
+    blessure: fcRecordInProgress.blessure || false,
+    etapesValidees: null,
+    observation: '',
+    createdAt: new Date().toISOString(),
+    fromQr: true,
+  };
+  persistRecord(newRecord);
+  alert(`Candidat ${newRecord.prenom} ${newRecord.nom} ajouté avec FC.`);
+  closeFcView();
+}
+
+// ─── Scanner QR via caméra (jsQR) ────────────────────────────────────────────
+
+let scanActive = false;
+let scanStream = null;
+
+async function startQrScan() {
+  if (typeof jsQR === 'undefined') {
+    alert('Le scanner QR n\'est pas disponible hors ligne. Connecte-toi une fois pour mettre en cache cette fonctionnalité.');
+    return;
+  }
+  const video = document.getElementById('fcScanVideo');
+  const overlay = document.getElementById('fcScanOverlay');
+  if (!video) return;
+
+  try {
+    scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    video.srcObject = scanStream;
+    video.play();
+    overlay.hidden = false;
+    scanActive = true;
+    requestAnimationFrame(scanQrFrame);
+  } catch (err) {
+    alert('Caméra non disponible. Assure-toi d\'autoriser l\'accès caméra.');
+    console.error(err);
+  }
+}
+
+function stopQrScan() {
+  scanActive = false;
+  if (scanStream) { scanStream.getTracks().forEach((t) => t.stop()); scanStream = null; }
+  const overlay = document.getElementById('fcScanOverlay');
+  if (overlay) overlay.hidden = true;
+}
+
+function scanQrFrame() {
+  if (!scanActive) return;
+  const video = document.getElementById('fcScanVideo');
+  if (!video || video.readyState !== video.HAVE_ENOUGH_DATA) {
+    requestAnimationFrame(scanQrFrame); return;
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0);
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+  try {
+    const code = jsQR(imageData.data, imageData.width, imageData.height);
+    if (code) {
+      const payload = JSON.parse(code.data);
+      if (payload.v === 1) {
+        stopQrScan();
+        populateFcForm(payload);
+        return;
+      }
+    }
+  } catch (_) {}
+  requestAnimationFrame(scanQrFrame);
+}
+
+// Event listeners FC view
+document.getElementById('openFcViewBtn')?.addEventListener('click', openFcView);
+document.getElementById('closeFcViewBtn')?.addEventListener('click', closeFcView);
+document.getElementById('fcScanBtn')?.addEventListener('click', startQrScan);
+document.getElementById('fcStopScanBtn')?.addEventListener('click', stopQrScan);
+document.getElementById('fcStartChronoBtn')?.addEventListener('click', startFcChrono);
+document.getElementById('fcResetChronoBtn')?.addEventListener('click', resetFcChrono);
+document.getElementById('fcSaveBtn')?.addEventListener('click', saveFcRecord);
+document.getElementById('fcInput1')?.addEventListener('input', computeFcDelta);
+document.getElementById('fcInput2')?.addEventListener('input', computeFcDelta);
+
+document.getElementById('fcScanBtn2')?.addEventListener('click', () => {
+  document.getElementById('fcScanResult').hidden = true;
+  document.getElementById('fcScanPlaceholder').hidden = false;
+  fcRecordInProgress = null;
+});
