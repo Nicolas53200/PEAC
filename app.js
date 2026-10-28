@@ -807,16 +807,31 @@ function buildCsvContent() {
     .join('\n');
 }
 
-function exportCsv() {
+async function exportCsv() {
   if (records.length === 0) {
     alert('Aucune donnée à exporter.');
     return;
   }
   const csv = buildCsvContent();
+  const fileName = `peac-evaluations-${new Date().toISOString().slice(0, 10)}.csv`;
+  const isCapacitor = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform();
+
+  if (isCapacitor) {
+    try {
+      const { Filesystem, Directory } = window.Capacitor.Plugins.Filesystem ? window.Capacitor.Plugins : await import('@capacitor/filesystem');
+      const { Share } = window.Capacitor.Plugins.Share ? window.Capacitor.Plugins : await import('@capacitor/share');
+      const result = await Filesystem.writeFile({ path: fileName, data: btoa(unescape(encodeURIComponent(csv))), directory: Directory.Cache });
+      await Share.share({ title: 'Export PEAC', text: 'Évaluations PEAC SDIS Mayenne', url: result.uri, dialogTitle: 'Exporter le CSV' });
+    } catch (error) {
+      if (error?.name !== 'AbortError') console.error('Export CSV Android:', error);
+    }
+    return;
+  }
+
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
-  link.download = `peac-evaluations-${new Date().toISOString().slice(0, 10)}.csv`;
+  link.download = fileName;
   link.click();
   URL.revokeObjectURL(link.href);
 }
@@ -962,8 +977,23 @@ async function shareRecords() {
     return;
   }
 
-  const csvBlob = new Blob([buildCsvContent()], { type: 'text/csv' });
+  const csv = buildCsvContent();
   const fileName = `peac-evaluations-${new Date().toISOString().slice(0, 10)}.csv`;
+  const isCapacitor = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform();
+
+  if (isCapacitor) {
+    try {
+      const { Filesystem, Directory } = window.Capacitor.Plugins.Filesystem ? window.Capacitor.Plugins : await import('@capacitor/filesystem');
+      const { Share } = window.Capacitor.Plugins.Share ? window.Capacitor.Plugins : await import('@capacitor/share');
+      const result = await Filesystem.writeFile({ path: fileName, data: btoa(unescape(encodeURIComponent(csv))), directory: Directory.Cache });
+      await Share.share({ title: 'PEAC SDIS Mayenne', text: 'Export des évaluations PEAC.', url: result.uri, dialogTitle: 'Partager les évaluations' });
+    } catch (error) {
+      if (error?.name !== 'AbortError') console.error('Partage Android:', error);
+    }
+    return;
+  }
+
+  const csvBlob = new Blob([csv], { type: 'text/csv' });
   const csvFile = new File([csvBlob], fileName, { type: 'text/csv' });
 
   if (navigator.canShare && navigator.canShare({ files: [csvFile] })) {
