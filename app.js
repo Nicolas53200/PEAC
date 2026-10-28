@@ -894,16 +894,77 @@ function exportPdfView() {
     alert('Aucune donnée à exporter.');
     return;
   }
-  const printWindow = window.open('', '_blank');
-  if (!printWindow) {
-    alert('Impossible d\'ouvrir la fenêtre PDF. Vérifie le bloqueur de pop-up.');
+
+  const isCapacitor = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform();
+
+  if (!isCapacitor) {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Impossible d\'ouvrir la fenêtre PDF. Vérifie le bloqueur de pop-up.');
+      return;
+    }
+    printWindow.document.open();
+    printWindow.document.write(buildPrintHtml());
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => printWindow.print(), 400);
     return;
   }
-  printWindow.document.open();
-  printWindow.document.write(buildPrintHtml());
-  printWindow.document.close();
-  printWindow.focus();
-  setTimeout(() => printWindow.print(), 400);
+
+  let overlay = document.getElementById('peac-pdf-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'peac-pdf-overlay';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;background:#fff;display:flex;flex-direction:column;';
+    document.body.appendChild(overlay);
+  }
+
+  const toolbar = document.createElement('div');
+  toolbar.style.cssText = 'display:flex;align-items:center;gap:12px;padding:10px 16px;background:#1e3a5f;color:#fff;flex-shrink:0;';
+
+  const backBtn = document.createElement('button');
+  backBtn.textContent = '← Retour à PEAC';
+  backBtn.style.cssText = 'background:#fff;color:#1e3a5f;border:none;border-radius:6px;padding:8px 18px;font-size:16px;font-weight:600;cursor:pointer;';
+
+  const printBtn = document.createElement('button');
+  printBtn.textContent = '🖨 Imprimer';
+  printBtn.style.cssText = 'background:transparent;color:#fff;border:1px solid #fff;border-radius:6px;padding:8px 18px;font-size:16px;cursor:pointer;';
+
+  const title = document.createElement('span');
+  title.textContent = 'PEAC — Fiche PDF globale';
+  title.style.cssText = 'font-size:16px;font-weight:600;margin-left:auto;';
+
+  toolbar.appendChild(backBtn);
+  toolbar.appendChild(printBtn);
+  toolbar.appendChild(title);
+
+  const content = document.createElement('div');
+  content.style.cssText = 'flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:16px;';
+  content.innerHTML = buildPrintHtml().replace(/<!doctype[^>]*>/i, '').replace(/<\/?html[^>]*>/gi, '').replace(/<head>[\s\S]*?<\/head>/i, '').replace(/<\/?body[^>]*>/gi, '');
+
+  overlay.innerHTML = '';
+  overlay.appendChild(toolbar);
+  overlay.appendChild(content);
+  overlay.style.display = 'flex';
+
+  function closePdfOverlay() {
+    overlay.style.display = 'none';
+    overlay.innerHTML = '';
+    document.removeEventListener('backbutton', closePdfOverlay);
+  }
+
+  backBtn.addEventListener('click', closePdfOverlay);
+  document.addEventListener('backbutton', closePdfOverlay);
+
+  printBtn.addEventListener('click', function () {
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.open();
+      printWindow.document.write(buildPrintHtml());
+      printWindow.document.close();
+      setTimeout(() => { printWindow.print(); printWindow.close(); }, 400);
+    }
+  });
 }
 
 async function shareRecords() {
@@ -2013,3 +2074,13 @@ document.getElementById('fcScanBtn2')?.addEventListener('click', () => {
   document.getElementById('fcScanPlaceholder').hidden = false;
   fcRecordInProgress = null;
 });
+
+if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+  document.addEventListener('backbutton', function () {
+    const overlay = document.getElementById('peac-pdf-overlay');
+    if (overlay && overlay.style.display !== 'none') {
+      overlay.style.display = 'none';
+      overlay.innerHTML = '';
+    }
+  });
+}
