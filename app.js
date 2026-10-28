@@ -915,37 +915,36 @@ function exportPdfView() {
   if (!overlay) {
     overlay = document.createElement('div');
     overlay.id = 'peac-pdf-overlay';
-    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;background:#fff;display:flex;flex-direction:column;';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;background:#fff;display:none;flex-direction:column;';
     document.body.appendChild(overlay);
   }
 
+  overlay.innerHTML = '';
+
   const toolbar = document.createElement('div');
-  toolbar.style.cssText = 'display:flex;align-items:center;gap:12px;padding:10px 16px;background:#1e3a5f;color:#fff;flex-shrink:0;';
+  toolbar.style.cssText = 'display:flex;align-items:center;gap:12px;padding:12px 16px;background:#1e3a5f;color:#fff;flex-shrink:0;min-height:52px;';
 
   const backBtn = document.createElement('button');
   backBtn.textContent = '← Retour à PEAC';
-  backBtn.style.cssText = 'background:#fff;color:#1e3a5f;border:none;border-radius:6px;padding:8px 18px;font-size:16px;font-weight:600;cursor:pointer;';
+  backBtn.style.cssText = 'background:#fff;color:#1e3a5f;border:none;border-radius:6px;padding:10px 20px;font-size:17px;font-weight:600;cursor:pointer;';
 
-  const printBtn = document.createElement('button');
-  printBtn.textContent = '🖨 Imprimer';
-  printBtn.style.cssText = 'background:transparent;color:#fff;border:1px solid #fff;border-radius:6px;padding:8px 18px;font-size:16px;cursor:pointer;';
-
-  const title = document.createElement('span');
-  title.textContent = 'PEAC — Fiche PDF globale';
-  title.style.cssText = 'font-size:16px;font-weight:600;margin-left:auto;';
+  const titleSpan = document.createElement('span');
+  titleSpan.textContent = 'Fiche PDF globale';
+  titleSpan.style.cssText = 'font-size:16px;font-weight:600;margin-left:auto;';
 
   toolbar.appendChild(backBtn);
-  toolbar.appendChild(printBtn);
-  toolbar.appendChild(title);
+  toolbar.appendChild(titleSpan);
 
-  const content = document.createElement('div');
-  content.style.cssText = 'flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:16px;';
-  content.innerHTML = buildPrintHtml().replace(/<!doctype[^>]*>/i, '').replace(/<\/?html[^>]*>/gi, '').replace(/<head>[\s\S]*?<\/head>/i, '').replace(/<\/?body[^>]*>/gi, '');
+  const iframe = document.createElement('iframe');
+  iframe.style.cssText = 'flex:1;border:none;width:100%;background:#fff;';
+  iframe.setAttribute('sandbox', 'allow-same-origin');
 
-  overlay.innerHTML = '';
   overlay.appendChild(toolbar);
-  overlay.appendChild(content);
+  overlay.appendChild(iframe);
   overlay.style.display = 'flex';
+
+  const htmlContent = buildPrintHtml();
+  iframe.srcdoc = htmlContent;
 
   function closePdfOverlay() {
     overlay.style.display = 'none';
@@ -955,16 +954,6 @@ function exportPdfView() {
 
   backBtn.addEventListener('click', closePdfOverlay);
   document.addEventListener('backbutton', closePdfOverlay);
-
-  printBtn.addEventListener('click', function () {
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      printWindow.document.open();
-      printWindow.document.write(buildPrintHtml());
-      printWindow.document.close();
-      setTimeout(() => { printWindow.print(); printWindow.close(); }, 400);
-    }
-  });
 }
 
 async function shareRecords() {
