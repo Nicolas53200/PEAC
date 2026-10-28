@@ -823,7 +823,9 @@ async function exportCsv() {
       const result = await FS.writeFile({ path: fileName, data: csv, directory: 'CACHE', encoding: 'utf8' });
       await SH.share({ title: 'Export PEAC', text: 'Évaluations PEAC SDIS Mayenne', url: result.uri, dialogTitle: 'Exporter le CSV' });
     } catch (error) {
-      if (error?.name !== 'AbortError') alert('Export impossible : ' + (error?.message || error));
+      if (error?.message && !error.message.includes('canceled') && !error.message.includes('cancelled')) {
+        alert('Export impossible : ' + error.message);
+      }
     }
     return;
   }
@@ -988,7 +990,9 @@ async function shareRecords() {
       const result = await FS.writeFile({ path: fileName, data: csv, directory: 'CACHE', encoding: 'utf8' });
       await SH.share({ title: 'PEAC SDIS Mayenne', text: 'Export des évaluations PEAC.', url: result.uri, dialogTitle: 'Partager les évaluations' });
     } catch (error) {
-      if (error?.name !== 'AbortError') alert('Partage impossible : ' + (error?.message || error));
+      if (error?.message && !error.message.includes('canceled') && !error.message.includes('cancelled')) {
+        alert('Partage impossible : ' + error.message);
+      }
     }
     return;
   }
