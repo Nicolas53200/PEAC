@@ -818,12 +818,12 @@ async function exportCsv() {
 
   if (isCapacitor) {
     try {
-      const { Filesystem, Directory } = window.Capacitor.Plugins.Filesystem ? window.Capacitor.Plugins : await import('@capacitor/filesystem');
-      const { Share } = window.Capacitor.Plugins.Share ? window.Capacitor.Plugins : await import('@capacitor/share');
-      const result = await Filesystem.writeFile({ path: fileName, data: btoa(unescape(encodeURIComponent(csv))), directory: Directory.Cache });
-      await Share.share({ title: 'Export PEAC', text: 'Évaluations PEAC SDIS Mayenne', url: result.uri, dialogTitle: 'Exporter le CSV' });
+      const FS = window.Capacitor.Plugins.Filesystem;
+      const SH = window.Capacitor.Plugins.Share;
+      const result = await FS.writeFile({ path: fileName, data: csv, directory: 'CACHE', encoding: 'utf8' });
+      await SH.share({ title: 'Export PEAC', text: 'Évaluations PEAC SDIS Mayenne', url: result.uri, dialogTitle: 'Exporter le CSV' });
     } catch (error) {
-      if (error?.name !== 'AbortError') console.error('Export CSV Android:', error);
+      if (error?.name !== 'AbortError') alert('Export impossible : ' + (error?.message || error));
     }
     return;
   }
@@ -983,12 +983,12 @@ async function shareRecords() {
 
   if (isCapacitor) {
     try {
-      const { Filesystem, Directory } = window.Capacitor.Plugins.Filesystem ? window.Capacitor.Plugins : await import('@capacitor/filesystem');
-      const { Share } = window.Capacitor.Plugins.Share ? window.Capacitor.Plugins : await import('@capacitor/share');
-      const result = await Filesystem.writeFile({ path: fileName, data: btoa(unescape(encodeURIComponent(csv))), directory: Directory.Cache });
-      await Share.share({ title: 'PEAC SDIS Mayenne', text: 'Export des évaluations PEAC.', url: result.uri, dialogTitle: 'Partager les évaluations' });
+      const FS = window.Capacitor.Plugins.Filesystem;
+      const SH = window.Capacitor.Plugins.Share;
+      const result = await FS.writeFile({ path: fileName, data: csv, directory: 'CACHE', encoding: 'utf8' });
+      await SH.share({ title: 'PEAC SDIS Mayenne', text: 'Export des évaluations PEAC.', url: result.uri, dialogTitle: 'Partager les évaluations' });
     } catch (error) {
-      if (error?.name !== 'AbortError') console.error('Partage Android:', error);
+      if (error?.name !== 'AbortError') alert('Partage impossible : ' + (error?.message || error));
     }
     return;
   }
